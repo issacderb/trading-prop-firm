@@ -5,17 +5,19 @@ PROP FIRM DUAL-ENGINE LIVE FORWARD TEST BOT WITH TELEGRAM ALERTS
 Validated on Binance Futures M5 via 10,000-Path Monte Carlo Simulation.
   * Engine 1: London Judas Asian Range Sweep (07:00 - 11:00 UTC)
   * Engine 2: 30m ORB & Bob Volman 5m Block Breakout
-  * Deployment: Render.com / Railway / Docker / Local
+  * Features: Built-in HTTP Health-Check Server (Keeps Cloud Alive 24/7)
 =============================================================================
 """
 
 import os
 import time
 import json
+import threading
 import requests
 import numpy as np
 import pandas as pd
 from datetime import datetime
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
 # Credentials with fallback defaults
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8759863642:AAHkemnfZf44nzDdj5WTa_Ll6m4zcMJaFnc").strip()
@@ -25,9 +27,37 @@ SYMBOL = os.getenv("SYMBOL", "BTCUSDT")
 INTERVAL = os.getenv("INTERVAL", "5m")
 RISK_PER_TRADE_PCT = float(os.getenv("RISK_PER_TRADE_PCT", "0.005")) # 0.5% risk
 INITIAL_BALANCE = float(os.getenv("INITIAL_BALANCE", "100000.0"))   # $100,000 Prop Firm base
+PORT = int(os.getenv("PORT", "10000"))
 
 LEDGER_FILE = "forward_test_ledger.json"
 
+# =============================================================================
+# LIGHTWEIGHT HTTP SERVER (KEEPS RENDER FREE TIER AWAKE 24/7)
+# =============================================================================
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "application/json")
+        self.end_headers()
+        response = {
+            "status": "online",
+            "bot": "Prop Firm Dual-Engine Quant Bot",
+            "symbol": SYMBOL,
+            "time": datetime.now().isoformat()
+        }
+        self.wfile.write(json.dumps(response).encode("utf-8"))
+
+    def log_message(self, format, *args):
+        return # Silent logging
+
+def run_health_server():
+    server = HTTPServer(("0.0.0.0", PORT), HealthCheckHandler)
+    print(f"[HTTP] Health check server listening on port {PORT}...")
+    server.serve_forever()
+
+# =============================================================================
+# TRADING BOT ENGINE
+# =============================================================================
 class LiveForwardTester:
     def __init__(self, token=TELEGRAM_BOT_TOKEN, chat_id=TELEGRAM_CHAT_ID):
         self.token = token
@@ -291,5 +321,10 @@ class LiveForwardTester:
             time.sleep(15)
 
 if __name__ == "__main__":
+    # Start HTTP Health Check Server in background thread
+    t = threading.Thread(target=run_health_server, daemon=True)
+    t.start()
+    
+    # Start Bot Scanner Loop
     bot = LiveForwardTester()
     bot.start_loop()
