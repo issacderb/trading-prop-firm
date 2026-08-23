@@ -17,8 +17,9 @@ import numpy as np
 import pandas as pd
 from datetime import datetime
 
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+# Credentials with fallback defaults
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8759863642:AAHkemnfZf44nzDdj5WTa_Ll6m4zcMJaFnc").strip()
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "7189062506").strip()
 
 SYMBOL = os.getenv("SYMBOL", "BTCUSDT")
 INTERVAL = os.getenv("INTERVAL", "5m")
@@ -75,6 +76,8 @@ class LiveForwardTester:
                 print("✅ [TELEGRAM] Message delivered successfully!")
             else:
                 print(f"⚠️ [TELEGRAM ERROR]: {r.text}")
+                if "chat not found" in r.text.lower():
+                    print("💡 LƯU Ý: Vui lòng mở con Bot của bạn trên Telegram và bấm nút /start để bot có quyền gửi tin nhắn cho bạn!")
         except Exception as e:
             print(f"⚠️ [TELEGRAM CONNECTION ERROR]: {e}")
 
