@@ -5,7 +5,7 @@ PROP FIRM DUAL-ENGINE LIVE FORWARD TEST BOT WITH TELEGRAM ALERTS & DASHBOARD
 Validated on Binance Futures M5 via 10,000-Path Monte Carlo Simulation.
   * Engine 1: London Judas Asian Range Sweep (07:00 - 11:00 UTC)
   * Engine 2: 30m ORB & Bob Volman 5m Block Breakout
-  * Features: Live Web Dashboard + Health-Check Server (Keeps Cloud Alive 24/7)
+  * Timezone: Formatted automatically in Vietnam Time (UTC+7)
 =============================================================================
 """
 
@@ -16,8 +16,14 @@ import threading
 import requests
 import numpy as np
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from http.server import HTTPServer, BaseHTTPRequestHandler
+
+# Vietnam Timezone (UTC+7)
+VN_TZ = timezone(timedelta(hours=7))
+
+def get_vn_time_str(fmt="%H:%M:%S %d/%m/%Y"):
+    return datetime.now(VN_TZ).strftime(fmt)
 
 # Credentials
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8759863642:AAHkemnfZf44nzDdj5WTa_Ll6m4zcMJaFnc").strip()
@@ -134,7 +140,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     </div>
                     <div style="text-align:right;">
                         <span class="badge">● LIVE 24/7 ONLINE</span>
-                        <div style="color:#64748b; font-size:11px; margin-top:6px;">Tự động làm mới mỗi 10s</div>
+                        <div style="color:#64748b; font-size:11px; margin-top:6px;">Giờ VN: {get_vn_time_str()}</div>
                     </div>
                 </div>
 
@@ -172,7 +178,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         <table>
                             <thead>
                                 <tr>
-                                    <th>Thời gian đóng</th>
+                                    <th>Thời gian đóng (VN)</th>
                                     <th>Hướng</th>
                                     <th>Giá vào</th>
                                     <th>Giá ra</th>
@@ -275,7 +281,7 @@ class LiveForwardTester:
         df["hour"] = df["open_time"].dt.hour
         df["minute"] = df["open_time"].dt.minute
         
-        # Indicators
+        # Technicals
         df["ema20"] = df["close"].ewm(span=20, adjust=False).mean()
         df["ema50"] = df["close"].ewm(span=50, adjust=False).mean()
         
@@ -287,7 +293,7 @@ class LiveForwardTester:
         df["vol_sma"] = df["volume"].rolling(window=20).mean().bfill()
         df["vol_spike"] = df["volume"] > (1.3 * df["vol_sma"])
         
-        # Asian Range
+        # Asian Range (00:00 - 06:00 UTC)
         today_date = df["date"].iloc[-1]
         asia_candles = df[(df["date"] == today_date) & (df["hour"] >= 0) & (df["hour"] < 6)]
         if len(asia_candles) > 0:
@@ -355,7 +361,7 @@ class LiveForwardTester:
             
             pos_record = {
                 **pos,
-                "exit_time": str(curr_time),
+                "exit_time": get_vn_time_str("%H:%M:%S %d/%m"),
                 "exit_price": exit_price,
                 "outcome": outcome,
                 "pnl_r": round(pnl_r, 3),
@@ -373,7 +379,8 @@ class LiveForwardTester:
                 f"• Kết quả: <b>{'🟢' if pnl_r > 0 else '🔴'} {outcome}</b>\n"
                 f"• PnL: <b>{'+' if dollar_pnl > 0 else ''}${dollar_pnl:,.2f} ({pnl_r:+.2f}R)</b>\n"
                 f"• Số dư Quỹ: <b>${self.ledger['account_balance']:,.2f}</b>\n"
-                f"• Win Rate: <b>{self.ledger['win_rate']}% ({self.ledger['wins']}W / {self.ledger['losses']}L)</b>"
+                f"• Win Rate: <b>{self.ledger['win_rate']}% ({self.ledger['wins']}W / {self.ledger['losses']}L)</b>\n"
+                f"• Thời gian đóng (VN): <b>{get_vn_time_str()}</b>"
             )
             self.send_telegram_alert(msg)
 
@@ -390,7 +397,7 @@ class LiveForwardTester:
         hour = curr["hour"]
         minute = curr["minute"]
         
-        # Engine 1: London Judas Sweep
+        # Engine 1: London Judas Sweep (07:00 - 11:00 UTC = 14:00 - 18:00 VN)
         in_london = (7 <= hour <= 11)
         asia_h = curr["asia_high"]
         asia_l = curr["asia_low"]
@@ -398,7 +405,7 @@ class LiveForwardTester:
         l_eng1 = in_london and (curr["low"] < asia_l) and (curr["close"] > asia_l) and (curr["close"] > curr["ema20"])
         s_eng1 = in_london and (curr["high"] > asia_h) and (curr["close"] < asia_h) and (curr["close"] < curr["ema20"])
         
-        # Engine 2: ORB & Block Breakout
+        # Engine 2: ORB & Block Breakout (London/NY Open)
         in_orb_window = ((hour == 7 and minute >= 30) or (hour == 13 and minute >= 30))
         sh10 = df["high"].iloc[-12:-2].max()
         sl10 = df["low"].iloc[-12:-2].min()
@@ -431,7 +438,7 @@ class LiveForwardTester:
                 "symbol": SYMBOL,
                 "direction": d,
                 "setup": setup_name,
-                "entry_time": str(curr["open_time"]),
+                "entry_time": get_vn_time_str("%H:%M:%S %d/%m"),
                 "entry_price": entry_price,
                 "sl_price": sl_price,
                 "tp_price": tp_price,
@@ -448,20 +455,20 @@ class LiveForwardTester:
                 f"• Cắt lỗ (Stop Loss): <b>${sl_price:,.2f}</b> (1.2x ATR)\n"
                 f"• Chốt lời (Take Profit): <b>${tp_price:,.2f}</b> (1.35R)\n"
                 f"• Rủi ro vị thế (0.5% Quỹ): <b>${self.active_position['risk_amount_dollar']:,.2f}</b>\n"
-                f"• Thời gian quét: <b>{datetime.now().strftime('%H:%M:%S %d/%m/%Y')}</b>"
+                f"• Thời gian quét (Giờ VN): <b>{get_vn_time_str()}</b>"
             )
             self.send_telegram_alert(msg)
 
     def start_loop(self):
-        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Live Forward Test Engine active on {SYMBOL} {INTERVAL}...")
-        self.send_telegram_alert(f"🤖 <b>[BOT FORWARD-TEST ĐÃ KHỞI ĐỘNG THÀNH CÔNG]</b>\n\n• Cặp: <b>{SYMBOL} ({INTERVAL})</b>\n• Số dư tài khoản: <b>${self.ledger['account_balance']:,.2f}</b>\n• Đang theo dõi thị trường 24/7...")
+        print(f"[{get_vn_time_str()}] Live Forward Test Engine active on {SYMBOL} {INTERVAL}...")
+        self.send_telegram_alert(f"🤖 <b>[BOT FORWARD-TEST ĐÃ KHỞI ĐỘNG THÀNH CÔNG]</b>\n\n• Cặp: <b>{SYMBOL} ({INTERVAL})</b>\n• Số dư tài khoản: <b>${self.ledger['account_balance']:,.2f}</b>\n• Thời gian (VN): <b>{get_vn_time_str()}</b>\n• Đang theo dõi thị trường 24/7...")
         
         while True:
             try:
                 df = self.fetch_live_m5_data()
                 curr = df.iloc[-1]
                 GLOBAL_STATE["current_price"] = curr["close"]
-                GLOBAL_STATE["last_scan_time"] = datetime.now().strftime('%H:%M:%S')
+                GLOBAL_STATE["last_scan_time"] = get_vn_time_str("%H:%M:%S")
                 
                 self.manage_active_position(curr["high"], curr["low"], curr["close"], curr["open_time"])
                 self.scan_for_new_entry(df)
