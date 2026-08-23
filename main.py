@@ -1,11 +1,12 @@
 """
 =============================================================================
-PROP FIRM DUAL-ENGINE LIVE FORWARD TEST BOT WITH TELEGRAM ALERTS & DASHBOARD
+PROP FIRM DUAL-ENGINE LIVE FORWARD TEST BOT & PROFESSIONAL QUANT JOURNAL
 =============================================================================
 Validated on Binance Futures M5 via 10,000-Path Monte Carlo Simulation.
   * Engine 1: London Judas Asian Range Sweep (07:00 - 11:00 UTC)
   * Engine 2: 30m ORB & Bob Volman 5m Block Breakout
-  * Timezone: Formatted automatically in Vietnam Time (UTC+7)
+  * Risk Management: Real-time 1.2x ATR Dynamic Stop Loss, 1.35R Take Profit, 0.5% Sizing
+  * Institutional Journal: Full Trade Logging, PnL in $ & R, Max DD, CSV/JSON Export
 =============================================================================
 """
 
@@ -37,7 +38,7 @@ PORT = int(os.getenv("PORT", "10000"))
 
 LEDGER_FILE = "forward_test_ledger.json"
 
-# Shared Global State for Web Dashboard
+# Shared Global State for Web Dashboard & Journal
 GLOBAL_STATE = {
     "status": "ONLINE",
     "last_scan_time": "Chưa có",
@@ -52,15 +53,42 @@ GLOBAL_STATE = {
         "wins": 0,
         "losses": 0,
         "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "expectancy_r": 0.0,
         "history": []
     }
 }
 
 # =============================================================================
-# BEAUTIFUL LIVE WEB DASHBOARD
+# PROFESSIONAL LIVE WEB DASHBOARD & TRADING JOURNAL
 # =============================================================================
 class DashboardHandler(BaseHTTPRequestHandler):
     def do_GET(self):
+        # CSV Export Endpoint
+        if self.path == "/export-csv":
+            self.send_response(200)
+            self.send_header("Content-type", "text/csv; charset=utf-8")
+            self.send_header("Content-Disposition", "attachment; filename=prop_firm_trade_journal.csv")
+            self.end_headers()
+            
+            history = GLOBAL_STATE["ledger"].get("history", [])
+            df_hist = pd.DataFrame(history) if len(history) > 0 else pd.DataFrame(columns=[
+                "trade_id", "symbol", "direction", "setup", "entry_time", "entry_price", "sl_price", "tp_price",
+                "exit_time", "exit_price", "hold_time_mins", "outcome", "pnl_r", "dollar_pnl", "balance_after"
+            ])
+            self.wfile.write(df_hist.to_csv(index=False).encode("utf-8"))
+            return
+
+        # JSON Export Endpoint
+        if self.path == "/export-json":
+            self.send_response(200)
+            self.send_header("Content-type", "application/json; charset=utf-8")
+            self.send_header("Content-Disposition", "attachment; filename=forward_test_ledger.json")
+            self.end_headers()
+            self.wfile.write(json.dumps(GLOBAL_STATE["ledger"], indent=2).encode("utf-8"))
+            return
+
+        # Main HTML Dashboard
         self.send_response(200)
         self.send_header("Content-type", "text/html; charset=utf-8")
         self.end_headers()
@@ -72,42 +100,52 @@ class DashboardHandler(BaseHTTPRequestHandler):
         pnl_pct = (pnl_dollar / INITIAL_BALANCE) * 100
         
         pos_html = """
-        <div style='background:#1e293b; padding:18px; border-radius:12px; border-left:4px solid #94a3b8; margin-bottom:20px;'>
-            <span style='color:#94a3b8; font-weight:600;'>Trạng thái Vị thế:</span> 
-            <span style='color:#f8fafc; font-weight:bold;'>Không có lệnh đang mở (Đang canh tín hiệu M5)</span>
+        <div style='background:#1e293b; padding:18px; border-radius:14px; border-left:4px solid #64748b; margin-bottom:20px;'>
+            <div style='display:flex; justify-content:space-between; align-items:center;'>
+                <span style='color:#94a3b8; font-weight:600;'>Trạng thái Vị thế (Active Position):</span>
+                <span style='color:#38bdf8; font-weight:bold; font-size:13px;'>● Đang quét nến M5 liên tục</span>
+            </div>
+            <div style='color:#f8fafc; font-weight:600; margin-top:6px;'>Hiện chưa có lệnh nào đang mở. Bot sẽ tự động mở lệnh khi xuất hiện tín hiệu chuẩn phiên London/NY.</div>
         </div>
         """
         if pos:
             color = "#10b981" if pos["direction"] == "LONG" else "#ef4444"
             pos_html = f"""
-            <div style='background:#1e293b; padding:18px; border-radius:12px; border-left:4px solid {color}; margin-bottom:20px;'>
-                <div style='display:flex; justify-content:space-between; align-items:center;'>
-                    <span style='font-size:18px; font-weight:bold; color:{color};'>⚡ VỊ THẾ ĐANG CHẠY: {pos["direction"]} ({pos["symbol"]})</span>
-                    <span style='background:{color}22; color:{color}; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600;'>{pos["setup"]}</span>
+            <div style='background:#1e293b; padding:20px; border-radius:14px; border-left:5px solid {color}; margin-bottom:24px; box-shadow:0 10px 25px -5px rgba(0,0,0,0.3);'>
+                <div style='display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;'>
+                    <div>
+                        <span style='font-size:20px; font-weight:800; color:{color};'>⚡ VỊ THẾ LIVE: {pos["direction"]} ({pos["symbol"]})</span>
+                        <div style='color:#94a3b8; font-size:13px; margin-top:2px;'>Vào lúc: {pos.get("entry_time", "")} • {pos["setup"]}</div>
+                    </div>
+                    <span style='background:{color}22; color:{color}; padding:6px 14px; border-radius:30px; font-size:13px; font-weight:700; border:1px solid {color}44;'>
+                        RỦI RO: 0.5% (${pos["risk_amount_dollar"]:,.2f})
+                    </span>
                 </div>
-                <div style='display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:12px; margin-top:14px;'>
-                    <div><small style='color:#94a3b8;'>Giá vào (Entry)</small><div style='font-size:16px; font-weight:bold; color:#f8fafc;'>${pos["entry_price"]:,.2f}</div></div>
-                    <div><small style='color:#94a3b8;'>Cắt lỗ (SL)</small><div style='font-size:16px; font-weight:bold; color:#ef4444;'>${pos["sl_price"]:,.2f}</div></div>
-                    <div><small style='color:#94a3b8;'>Chốt lời (TP)</small><div style='font-size:16px; font-weight:bold; color:#10b981;'>${pos["tp_price"]:,.2f}</div></div>
-                    <div><small style='color:#94a3b8;'>Rủi ro (0.5%)</small><div style='font-size:16px; font-weight:bold; color:#e2e8f0;'>${pos["risk_amount_dollar"]:,.2f}</div></div>
+                <div style='display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:14px; margin-top:16px; background:#0f172a; padding:14px; border-radius:10px;'>
+                    <div><small style='color:#94a3b8;'>Giá vào (Entry)</small><div style='font-size:17px; font-weight:bold; color:#f8fafc;'>${pos["entry_price"]:,.2f}</div></div>
+                    <div><small style='color:#94a3b8;'>Cắt lỗ (Stop Loss - 1.2x ATR)</small><div style='font-size:17px; font-weight:bold; color:#ef4444;'>${pos["sl_price"]:,.2f}</div></div>
+                    <div><small style='color:#94a3b8;'>Chốt lời (Take Profit - 1.35R)</small><div style='font-size:17px; font-weight:bold; color:#10b981;'>${pos["tp_price"]:,.2f}</div></div>
+                    <div><small style='color:#94a3b8;'>Khoảng cách Rủi ro (SL Dist)</small><div style='font-size:17px; font-weight:bold; color:#38bdf8;'>${abs(pos['entry_price'] - pos['sl_price']):,.2f}</div></div>
                 </div>
             </div>
             """
             
         history_rows = ""
-        for t in reversed(ledger.get("history", [])[-10:]):
+        for t in reversed(ledger.get("history", [])):
             res_color = "#10b981" if t.get("pnl_r", 0) > 0 else "#ef4444"
             history_rows += f"""
             <tr style='border-bottom:1px solid #334155;'>
-                <td style='padding:10px 14px;'>{t.get("exit_time", "")}</td>
-                <td style='padding:10px 14px; font-weight:600;'>{t.get("direction", "")}</td>
-                <td style='padding:10px 14px;'>${t.get("entry_price", 0):,.2f}</td>
-                <td style='padding:10px 14px;'>${t.get("exit_price", 0):,.2f}</td>
-                <td style='padding:10px 14px; font-weight:bold; color:{res_color};'>{t.get("pnl_r", 0):+.2f}R ({t.get("dollar_pnl", 0):+,.2f}$)</td>
+                <td style='padding:12px 14px; font-weight:700; color:#38bdf8;'>#{t.get("trade_id", "-")}</td>
+                <td style='padding:12px 14px;'><div style='font-weight:600;'>{t.get("direction", "")}</div><small style='color:#94a3b8;'>{t.get("setup", "")}</small></td>
+                <td style='padding:12px 14px;'>${t.get("entry_price", 0):,.2f}<br><small style='color:#94a3b8;'>{t.get("entry_time", "")}</small></td>
+                <td style='padding:12px 14px;'>${t.get("exit_price", 0):,.2f}<br><small style='color:#94a3b8;'>{t.get("exit_time", "")}</small></td>
+                <td style='padding:12px 14px;'>{t.get("hold_time_mins", "-")} phút</td>
+                <td style='padding:12px 14px; font-weight:800; color:{res_color};'>{t.get("pnl_r", 0):+.2f}R<br><small>{t.get("dollar_pnl", 0):+,.2f}$</small></td>
+                <td style='padding:12px 14px; font-weight:bold; color:#f8fafc;'>${t.get("balance_after", 0):,.2f}</td>
             </tr>
             """
         if not history_rows:
-            history_rows = "<tr><td colspan='5' style='text-align:center; padding:24px; color:#64748b;'>Chưa có lệnh nào đóng. Bot đang hoạt động!</td></tr>"
+            history_rows = "<tr><td colspan='7' style='text-align:center; padding:32px; color:#64748b; font-size:14px;'>Chưa có lệnh nào đóng. Bot đang kết nối Binance live và sẵn sàng ghi nhật ký!</td></tr>"
 
         html = f"""
         <!DOCTYPE html>
@@ -115,74 +153,83 @@ class DashboardHandler(BaseHTTPRequestHandler):
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Prop Firm Quant Bot Dashboard</title>
-            <meta http-equiv="refresh" content="10">
-            <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+            <title>Nhật Ký Giao Dịch Thể Chế - Prop Firm Quant Bot</title>
+            <meta http-equiv="refresh" content="15">
+            <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
             <style>
-                body {{ font-family: 'Plus Jakarta Sans', sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 24px; }}
-                .container {{ max-width: 960px; margin: 0 auto; }}
-                .card {{ background: #1e293b; border-radius: 16px; padding: 20px; border: 1px solid #334155; }}
-                .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }}
-                .stat-box {{ background: #0f172a88; border: 1px solid #334155; padding: 16px; border-radius: 12px; }}
-                .badge {{ background: #10b98122; color: #10b981; padding: 6px 12px; border-radius: 20px; font-weight: 700; font-size: 13px; }}
-                table {{ width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; }}
-                th {{ padding: 12px 14px; background: #0f172a; color: #94a3b8; font-weight: 600; }}
+                body {{ font-family: 'Plus Jakarta Sans', sans-serif; background: #0b1329; color: #f8fafc; margin: 0; padding: 24px; }}
+                .container {{ max-width: 1080px; margin: 0 auto; }}
+                .card {{ background: #1e293b; border-radius: 16px; padding: 22px; border: 1px solid #334155; }}
+                .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; margin-bottom: 24px; }}
+                .stat-box {{ background: #0f172a; border: 1px solid #334155; padding: 18px; border-radius: 14px; }}
+                .badge {{ background: #10b98122; color: #10b981; padding: 6px 14px; border-radius: 20px; font-weight: 700; font-size: 13px; border: 1px solid #10b98144; }}
+                table {{ width: 100%; border-collapse: collapse; text-align: left; font-size: 13.5px; }}
+                th {{ padding: 14px; background: #0f172a; color: #94a3b8; font-weight: 700; font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.5px; }}
+                .btn {{ background: #38bdf8; color: #0f172a; padding: 8px 16px; border-radius: 8px; font-weight: 700; text-decoration: none; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }}
+                .btn:hover {{ background: #7dd3fc; }}
             </style>
         </head>
         <body>
             <div class="container">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 24px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 24px; flex-wrap:wrap; gap:12px;">
                     <div>
-                        <h1 style="margin:0; font-size:24px; font-weight:800; background:linear-gradient(135deg, #38bdf8, #818cf8); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">
-                            PROP FIRM DUAL-ENGINE BOT
+                        <h1 style="margin:0; font-size:26px; font-weight:800; background:linear-gradient(135deg, #38bdf8, #818cf8); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">
+                            NHẬT KÝ GIAO DỊCH THỂ CHẾ (PROP FIRM JOURNAL)
                         </h1>
-                        <p style="margin:4px 0 0 0; color:#94a3b8; font-size:14px;">Binance Futures M5 • Live Forward-Test • Tự động gửi Telegram</p>
+                        <p style="margin:4px 0 0 0; color:#94a3b8; font-size:14px;">Quản trị vốn 0.5% • Cắt lỗ 1.2x ATR • Chốt lời 1.35R • Đồng bộ Telegram 24/7</p>
                     </div>
                     <div style="text-align:right;">
-                        <span class="badge">● LIVE 24/7 ONLINE</span>
-                        <div style="color:#64748b; font-size:11px; margin-top:6px;">Giờ VN: {get_vn_time_str()}</div>
+                        <span class="badge">● LIVE 24/7 CLOUD ONLINE</span>
+                        <div style="color:#64748b; font-size:12px; margin-top:6px;">Giờ VN: {get_vn_time_str()}</div>
                     </div>
                 </div>
 
                 <div class="grid">
                     <div class="stat-box">
                         <small style="color:#94a3b8;">Số Dư Quỹ Hiện Tại</small>
-                        <div style="font-size:22px; font-weight:800; color:#38bdf8; margin-top:4px;">${ledger["account_balance"]:,.2f}</div>
-                        <small style="color:{'#10b981' if pnl_dollar>=0 else '#ef4444'}; font-weight:600;">{pnl_dollar:+,.2f}$ ({pnl_pct:+.2f}%)</small>
+                        <div style="font-size:24px; font-weight:800; color:#38bdf8; margin-top:4px;">${ledger["account_balance"]:,.2f}</div>
+                        <small style="color:{'#10b981' if pnl_dollar>=0 else '#ef4444'}; font-weight:700;">{pnl_dollar:+,.2f}$ ({pnl_pct:+.2f}%)</small>
                     </div>
                     <div class="stat-box">
-                        <small style="color:#94a3b8;">Giá BTC Hiện Tại</small>
-                        <div style="font-size:22px; font-weight:800; color:#f8fafc; margin-top:4px;">${curr_price:,.2f}</div>
+                        <small style="color:#94a3b8;">Giá BTC Live</small>
+                        <div style="font-size:24px; font-weight:800; color:#f8fafc; margin-top:4px;">${curr_price:,.2f}</div>
                         <small style="color:#94a3b8;">Quét lúc: {GLOBAL_STATE["last_scan_time"]}</small>
                     </div>
                     <div class="stat-box">
                         <small style="color:#94a3b8;">Tỷ Lệ Thắng (Win Rate)</small>
-                        <div style="font-size:22px; font-weight:800; color:#10b981; margin-top:4px;">{ledger["win_rate"]}%</div>
+                        <div style="font-size:24px; font-weight:800; color:#10b981; margin-top:4px;">{ledger["win_rate"]}%</div>
                         <small style="color:#94a3b8;">{ledger["wins"]} Thắng / {ledger["losses"]} Thua ({ledger["total_trades"]} lệnh)</small>
                     </div>
                     <div class="stat-box">
                         <small style="color:#94a3b8;">Sụt Giảm Tối Đa (Max DD)</small>
-                        <div style="font-size:22px; font-weight:800; color:#f59e0b; margin-top:4px;">{ledger["max_drawdown_pct"]}%</div>
-                        <small style="color:#10b981;">🛡️ An toàn so với mốc 8% Quỹ</small>
+                        <div style="font-size:24px; font-weight:800; color:#f59e0b; margin-top:4px;">{ledger["max_drawdown_pct"]}%</div>
+                        <small style="color:#10b981; font-weight:600;">🛡️ An toàn (Giới hạn 8% Quỹ)</small>
                     </div>
                 </div>
 
                 {pos_html}
 
                 <div class="card">
-                    <h3 style="margin-top:0; font-size:16px; color:#f8fafc; display:flex; justify-content:space-between;">
-                        <span>📜 LỊCH SỬ GIAO DỊCH GẦN NHẤT</span>
-                        <span style="font-size:13px; color:#38bdf8; font-weight:normal;">Chiến lược: Judas Sweep & ORB Breakout</span>
-                    </h3>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; flex-wrap:wrap; gap:10px;">
+                        <h3 style="margin:0; font-size:17px; color:#f8fafc;">
+                            📜 SỔ CÁI LỊCH SỬ GIAO DỊCH CHI TIẾT
+                        </h3>
+                        <div style="display:flex; gap:10px;">
+                            <a href="/export-csv" class="btn">📥 Tải Excel (CSV)</a>
+                            <a href="/export-json" class="btn" style="background:#334155; color:#f8fafc;">📄 Tải JSON</a>
+                        </div>
+                    </div>
                     <div style="overflow-x:auto;">
                         <table>
                             <thead>
                                 <tr>
-                                    <th>Thời gian đóng (VN)</th>
-                                    <th>Hướng</th>
-                                    <th>Giá vào</th>
-                                    <th>Giá ra</th>
+                                    <th>ID</th>
+                                    <th>Thiết lập / Hướng</th>
+                                    <th>Giá vào & Giờ vào</th>
+                                    <th>Giá ra & Giờ ra</th>
+                                    <th>Thời gian giữ</th>
                                     <th>PnL (R & $)</th>
+                                    <th>Số dư sau lệnh</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -202,11 +249,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
 def run_dashboard_server():
     server = HTTPServer(("0.0.0.0", PORT), DashboardHandler)
-    print(f"[HTTP] Dashboard listening on port {PORT}...")
+    print(f"[HTTP] Professional Journal listening on port {PORT}...")
     server.serve_forever()
 
 # =============================================================================
-# TRADING BOT ENGINE
+# TRADING BOT ENGINE WITH PROFESSIONAL JOURNAL LOGGING
 # =============================================================================
 class LiveForwardTester:
     def __init__(self, token=TELEGRAM_BOT_TOKEN, chat_id=TELEGRAM_CHAT_ID):
@@ -233,6 +280,8 @@ class LiveForwardTester:
             "wins": 0,
             "losses": 0,
             "win_rate": 0.0,
+            "profit_factor": 0.0,
+            "expectancy_r": 0.0,
             "active_position": None,
             "history": []
         }
@@ -359,10 +408,21 @@ class LiveForwardTester:
             curr_dd = (self.ledger["peak_balance"] - self.ledger["account_balance"]) / self.ledger["peak_balance"] * 100
             self.ledger["max_drawdown_pct"] = round(max(self.ledger["max_drawdown_pct"], curr_dd), 2)
             
+            # Calculate hold time in minutes
+            hold_mins = int((datetime.now(VN_TZ).timestamp() - pos.get("entry_ts", datetime.now(VN_TZ).timestamp())) / 60)
+            
             pos_record = {
-                **pos,
+                "trade_id": self.ledger["total_trades"],
+                "symbol": pos["symbol"],
+                "direction": d,
+                "setup": pos["setup"],
+                "entry_time": pos["entry_time"],
+                "entry_price": entry,
+                "sl_price": sl,
+                "tp_price": tp,
                 "exit_time": get_vn_time_str("%H:%M:%S %d/%m"),
                 "exit_price": exit_price,
+                "hold_time_mins": max(5, hold_mins),
                 "outcome": outcome,
                 "pnl_r": round(pnl_r, 3),
                 "dollar_pnl": round(dollar_pnl, 2),
@@ -373,14 +433,14 @@ class LiveForwardTester:
             self.save_ledger()
             
             msg = (
-                f"🔔 <b>[LỆNH ĐÃ ĐÓNG - FORWARD TEST LIVE]</b>\n\n"
-                f"• Cặp: <b>{SYMBOL} ({INTERVAL})</b>\n"
+                f"🔔 <b>[LỆNH ĐÃ ĐÓNG - NHẬT KÝ FORWARD TEST]</b>\n\n"
+                f"• Lệnh ID: <b>#{pos_record['trade_id']} ({SYMBOL})</b>\n"
                 f"• Vị thế: <b>{d}</b>\n"
                 f"• Kết quả: <b>{'🟢' if pnl_r > 0 else '🔴'} {outcome}</b>\n"
                 f"• PnL: <b>{'+' if dollar_pnl > 0 else ''}${dollar_pnl:,.2f} ({pnl_r:+.2f}R)</b>\n"
-                f"• Số dư Quỹ: <b>${self.ledger['account_balance']:,.2f}</b>\n"
+                f"• Số dư Quỹ mới: <b>${self.ledger['account_balance']:,.2f}</b>\n"
                 f"• Win Rate: <b>{self.ledger['win_rate']}% ({self.ledger['wins']}W / {self.ledger['losses']}L)</b>\n"
-                f"• Thời gian đóng (VN): <b>{get_vn_time_str()}</b>"
+                f"• Thời gian giữ: <b>{pos_record['hold_time_mins']} phút</b>"
             )
             self.send_telegram_alert(msg)
 
@@ -405,7 +465,7 @@ class LiveForwardTester:
         l_eng1 = in_london and (curr["low"] < asia_l) and (curr["close"] > asia_l) and (curr["close"] > curr["ema20"])
         s_eng1 = in_london and (curr["high"] > asia_h) and (curr["close"] < asia_h) and (curr["close"] < curr["ema20"])
         
-        # Engine 2: ORB & Block Breakout (London/NY Open)
+        # Engine 2: ORB & Block Breakout
         in_orb_window = ((hour == 7 and minute >= 30) or (hour == 13 and minute >= 30))
         sh10 = df["high"].iloc[-12:-2].max()
         sl10 = df["low"].iloc[-12:-2].min()
@@ -438,6 +498,7 @@ class LiveForwardTester:
                 "symbol": SYMBOL,
                 "direction": d,
                 "setup": setup_name,
+                "entry_ts": datetime.now(VN_TZ).timestamp(),
                 "entry_time": get_vn_time_str("%H:%M:%S %d/%m"),
                 "entry_price": entry_price,
                 "sl_price": sl_price,
@@ -455,7 +516,7 @@ class LiveForwardTester:
                 f"• Cắt lỗ (Stop Loss): <b>${sl_price:,.2f}</b> (1.2x ATR)\n"
                 f"• Chốt lời (Take Profit): <b>${tp_price:,.2f}</b> (1.35R)\n"
                 f"• Rủi ro vị thế (0.5% Quỹ): <b>${self.active_position['risk_amount_dollar']:,.2f}</b>\n"
-                f"• Thời gian quét (Giờ VN): <b>{get_vn_time_str()}</b>"
+                f"• Thời gian quét: <b>{get_vn_time_str()}</b>"
             )
             self.send_telegram_alert(msg)
 
