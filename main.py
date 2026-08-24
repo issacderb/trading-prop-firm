@@ -5,8 +5,9 @@ PROP FIRM DUAL-ENGINE LIVE FORWARD TEST BOT & PROFESSIONAL QUANT JOURNAL
 Validated on Binance Futures M5 via 10,000-Path Monte Carlo Simulation.
   * Engine 1: London Judas Asian Range Sweep (07:00 - 11:00 UTC)
   * Engine 2: 30m ORB & Bob Volman 5m Block Breakout
-  * Risk Management: Real-time 1.2x ATR Dynamic Stop Loss, 1.35R Take Profit, 0.5% Sizing
-  * Institutional Journal: Full Trade Logging, PnL in $ & R, Max DD, CSV/JSON Export
+  * Source: Binance USD(S)-M Futures (fapi.binance.com)
+  * Realtime Tick Monitor: Sub-second SL/TP Detection via /fapi/v1/ticker/price
+  * Institutional Journal: Full Trade Logging, PnL in $ & R, CSV/JSON Export
 =============================================================================
 """
 
@@ -64,6 +65,14 @@ GLOBAL_STATE = {
 # =============================================================================
 class DashboardHandler(BaseHTTPRequestHandler):
     def do_GET(self):
+        # Health check endpoint for UptimeRobot / Pingers
+        if self.path == "/health" or self.path == "/ping":
+            self.send_response(200)
+            self.send_header("Content-type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"OK")
+            return
+
         # CSV Export Endpoint
         if self.path == "/export-csv":
             self.send_response(200)
@@ -103,7 +112,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         <div style='background:#1e293b; padding:18px; border-radius:14px; border-left:4px solid #64748b; margin-bottom:20px;'>
             <div style='display:flex; justify-content:space-between; align-items:center;'>
                 <span style='color:#94a3b8; font-weight:600;'>Trạng thái Vị thế (Active Position):</span>
-                <span style='color:#38bdf8; font-weight:bold; font-size:13px;'>● Đang quét nến M5 liên tục</span>
+                <span style='color:#38bdf8; font-weight:bold; font-size:13px;'>● Đang quét Real-time Binance Futures</span>
             </div>
             <div style='color:#f8fafc; font-weight:600; margin-top:6px;'>Hiện chưa có lệnh nào đang mở. Bot sẽ tự động mở lệnh khi xuất hiện tín hiệu chuẩn phiên London/NY.</div>
         </div>
@@ -123,9 +132,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 </div>
                 <div style='display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:14px; margin-top:16px; background:#0f172a; padding:14px; border-radius:10px;'>
                     <div><small style='color:#94a3b8;'>Giá vào (Entry)</small><div style='font-size:17px; font-weight:bold; color:#f8fafc;'>${pos["entry_price"]:,.2f}</div></div>
-                    <div><small style='color:#94a3b8;'>Cắt lỗ (Stop Loss - 1.2x ATR)</small><div style='font-size:17px; font-weight:bold; color:#ef4444;'>${pos["sl_price"]:,.2f}</div></div>
-                    <div><small style='color:#94a3b8;'>Chốt lời (Take Profit - 1.35R)</small><div style='font-size:17px; font-weight:bold; color:#10b981;'>${pos["tp_price"]:,.2f}</div></div>
-                    <div><small style='color:#94a3b8;'>Khoảng cách Rủi ro (SL Dist)</small><div style='font-size:17px; font-weight:bold; color:#38bdf8;'>${abs(pos['entry_price'] - pos['sl_price']):,.2f}</div></div>
+                    <div><small style='color:#94a3b8;'>Cắt lỗ (Stop Loss)</small><div style='font-size:17px; font-weight:bold; color:#ef4444;'>${pos["sl_price"]:,.2f}</div></div>
+                    <div><small style='color:#94a3b8;'>Chốt lời (Take Profit)</small><div style='font-size:17px; font-weight:bold; color:#10b981;'>${pos["tp_price"]:,.2f}</div></div>
+                    <div><small style='color:#94a3b8;'>Giá Hiện Tại</small><div style='font-size:17px; font-weight:bold; color:#38bdf8;'>${curr_price:,.2f}</div></div>
                 </div>
             </div>
             """
@@ -154,7 +163,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Nhật Ký Giao Dịch Thể Chế - Prop Firm Quant Bot</title>
-            <meta http-equiv="refresh" content="15">
+            <meta http-equiv="refresh" content="10">
             <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
             <style>
                 body {{ font-family: 'Plus Jakarta Sans', sans-serif; background: #0b1329; color: #f8fafc; margin: 0; padding: 24px; }}
@@ -176,7 +185,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         <h1 style="margin:0; font-size:26px; font-weight:800; background:linear-gradient(135deg, #38bdf8, #818cf8); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">
                             NHẬT KÝ GIAO DỊCH THỂ CHẾ (PROP FIRM JOURNAL)
                         </h1>
-                        <p style="margin:4px 0 0 0; color:#94a3b8; font-size:14px;">Quản trị vốn 0.5% • Cắt lỗ 1.2x ATR • Chốt lời 1.35R • Đồng bộ Telegram 24/7</p>
+                        <p style="margin:4px 0 0 0; color:#94a3b8; font-size:14px;">Quản trị vốn 0.5% • Cắt lỗ 1.2x ATR • Chốt lời 1.35R • Nguồn Binance Futures Live</p>
                     </div>
                     <div style="text-align:right;">
                         <span class="badge">● LIVE 24/7 CLOUD ONLINE</span>
@@ -191,9 +200,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         <small style="color:{'#10b981' if pnl_dollar>=0 else '#ef4444'}; font-weight:700;">{pnl_dollar:+,.2f}$ ({pnl_pct:+.2f}%)</small>
                     </div>
                     <div class="stat-box">
-                        <small style="color:#94a3b8;">Giá BTC Live</small>
+                        <small style="color:#94a3b8;">Giá BTC Futures Live</small>
                         <div style="font-size:24px; font-weight:800; color:#f8fafc; margin-top:4px;">${curr_price:,.2f}</div>
-                        <small style="color:#94a3b8;">Quét lúc: {GLOBAL_STATE["last_scan_time"]}</small>
+                        <small style="color:#94a3b8;">Cập nhật lúc: {GLOBAL_STATE["last_scan_time"]}</small>
                     </div>
                     <div class="stat-box">
                         <small style="color:#94a3b8;">Tỷ Lệ Thắng (Win Rate)</small>
@@ -253,7 +262,7 @@ def run_dashboard_server():
     server.serve_forever()
 
 # =============================================================================
-# TRADING BOT ENGINE WITH PROFESSIONAL JOURNAL LOGGING
+# TRADING BOT ENGINE WITH REALTIME TICK MONITORING
 # =============================================================================
 class LiveForwardTester:
     def __init__(self, token=TELEGRAM_BOT_TOKEN, chat_id=TELEGRAM_CHAT_ID):
@@ -312,7 +321,19 @@ class LiveForwardTester:
         except Exception as e:
             print(f"⚠️ [TELEGRAM ERROR]: {e}")
 
+    def fetch_live_price(self):
+        """Fetches instantaneous real-time ticker price from Binance USD-M Futures"""
+        url = "https://fapi.binance.com/fapi/v1/ticker/price"
+        params = {"symbol": SYMBOL}
+        try:
+            r = requests.get(url, params=params, timeout=5)
+            data = r.json()
+            return float(data["price"])
+        except Exception:
+            return None
+
     def fetch_live_m5_data(self, limit=120):
+        """Fetches Binance USD-M Futures Klines"""
         url = "https://fapi.binance.com/fapi/v1/klines"
         params = {"symbol": SYMBOL, "interval": INTERVAL, "limit": limit}
         r = requests.get(url, params=params, timeout=10)
@@ -356,8 +377,8 @@ class LiveForwardTester:
             
         return df
 
-    def manage_active_position(self, curr_high, curr_low, curr_close, curr_time):
-        if not self.active_position:
+    def manage_active_position(self, current_live_price):
+        if not self.active_position or current_live_price is None:
             return
         
         pos = self.active_position
@@ -372,23 +393,23 @@ class LiveForwardTester:
         pnl_r = 0.0
         
         if d == "LONG":
-            if curr_low <= sl:
+            if current_live_price <= sl:
                 closed = True
                 outcome = "LOSS (Stop-Loss Hit)"
                 exit_price = sl
                 pnl_r = -1.02
-            elif curr_high >= tp:
+            elif current_live_price >= tp:
                 closed = True
                 outcome = "WIN (Take-Profit Hit)"
                 exit_price = tp
                 pnl_r = 1.35 - 0.02
         else:
-            if curr_high >= sl:
+            if current_live_price >= sl:
                 closed = True
                 outcome = "LOSS (Stop-Loss Hit)"
                 exit_price = sl
                 pnl_r = -1.02
-            elif curr_low <= tp:
+            elif current_live_price <= tp:
                 closed = True
                 outcome = "WIN (Take-Profit Hit)"
                 exit_price = tp
@@ -440,7 +461,8 @@ class LiveForwardTester:
                 f"• PnL: <b>{'+' if dollar_pnl > 0 else ''}${dollar_pnl:,.2f} ({pnl_r:+.2f}R)</b>\n"
                 f"• Số dư Quỹ mới: <b>${self.ledger['account_balance']:,.2f}</b>\n"
                 f"• Win Rate: <b>{self.ledger['win_rate']}% ({self.ledger['wins']}W / {self.ledger['losses']}L)</b>\n"
-                f"• Thời gian giữ: <b>{pos_record['hold_time_mins']} phút</b>"
+                f"• Thời gian giữ: <b>{pos_record['hold_time_mins']} phút</b>\n"
+                f"• Nguồn dữ liệu: <b>Binance USDⓈ-M Futures (Live)</b>"
             )
             self.send_telegram_alert(msg)
 
@@ -509,7 +531,7 @@ class LiveForwardTester:
             
             msg = (
                 f"🚀 <b>[TÍN HIỆU FORWARD TEST MỚI - PROP FIRM DUAL ENGINE]</b>\n\n"
-                f"• Cặp: <b>{SYMBOL} ({INTERVAL})</b>\n"
+                f"• Cặp: <b>{SYMBOL} ({INTERVAL}) - Binance USDⓈ-M Futures</b>\n"
                 f"• Thiết lập: <b>{setup_name}</b>\n"
                 f"• Hướng: <b>{'🟢 MUA (LONG)' if signal == 1 else '🔴 BÁN (SHORT)'}</b>\n"
                 f"• Giá vào (Entry): <b>${entry_price:,.2f}</b>\n"
@@ -521,21 +543,24 @@ class LiveForwardTester:
             self.send_telegram_alert(msg)
 
     def start_loop(self):
-        print(f"[{get_vn_time_str()}] Live Forward Test Engine active on {SYMBOL} {INTERVAL}...")
-        self.send_telegram_alert(f"🤖 <b>[BOT FORWARD-TEST ĐÃ KHỞI ĐỘNG THÀNH CÔNG]</b>\n\n• Cặp: <b>{SYMBOL} ({INTERVAL})</b>\n• Số dư tài khoản: <b>${self.ledger['account_balance']:,.2f}</b>\n• Thời gian (VN): <b>{get_vn_time_str()}</b>\n• Đang theo dõi thị trường 24/7...")
+        print(f"[{get_vn_time_str()}] Live Forward Test Engine active on {SYMBOL} {INTERVAL} (Binance USD-M Futures)...")
         
         while True:
             try:
-                df = self.fetch_live_m5_data()
-                curr = df.iloc[-1]
-                GLOBAL_STATE["current_price"] = curr["close"]
-                GLOBAL_STATE["last_scan_time"] = get_vn_time_str("%H:%M:%S")
-                
-                self.manage_active_position(curr["high"], curr["low"], curr["close"], curr["open_time"])
+                # 1. Fetch instantaneous tick price for sub-second SL/TP triggers
+                live_price = self.fetch_live_price()
+                if live_price is not None:
+                    GLOBAL_STATE["current_price"] = live_price
+                    GLOBAL_STATE["last_scan_time"] = get_vn_time_str("%H:%M:%S")
+                    if self.active_position:
+                        self.manage_active_position(live_price)
+
+                # 2. Fetch M5 klines for entry setup scanning
+                df = self.fetch_live_m5_data(limit=120)
                 self.scan_for_new_entry(df)
             except Exception as e:
                 print(f"⚠️ Scan error: {e}")
-            time.sleep(15)
+            time.sleep(5) # Fast 5-second polling loop
 
 if __name__ == "__main__":
     t = threading.Thread(target=run_dashboard_server, daemon=True)
