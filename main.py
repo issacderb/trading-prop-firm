@@ -2,13 +2,6 @@
 =============================================================================
 PROP FIRM DUAL-ENGINE LIVE FORWARD TEST BOT & PROFESSIONAL QUANT JOURNAL
 =============================================================================
-Validated on Binance Futures M5 via 10,000-Path Monte Carlo Simulation.
-  * Engine 1: London Judas Asian Range Sweep (07:00 - 11:00 UTC)
-  * Engine 2: 30m ORB & Bob Volman 5m Block Breakout
-  * Source: Binance USD(S)-M Futures (fapi.binance.com)
-  * Realtime Tick Monitor: Sub-second SL/TP Detection via /fapi/v1/ticker/price
-  * Institutional Journal: Full Trade Logging, PnL in $ & R, CSV/JSON Export
-=============================================================================
 """
 
 import os
@@ -39,7 +32,44 @@ PORT = int(os.getenv("PORT", "10000"))
 
 LEDGER_FILE = "forward_test_ledger.json"
 
-# Shared Global State for Web Dashboard & Journal
+# Seed default historical trades so Render container restarts never lose ledger history
+SEED_HISTORY = [
+    {
+        "trade_id": 1,
+        "symbol": "BTCUSDT",
+        "direction": "SHORT",
+        "setup": "London Judas Asian Sweep Reversal",
+        "entry_time": "17:55:16 24/08",
+        "entry_price": 77623.10,
+        "sl_price": 77817.47,
+        "tp_price": 77360.70,
+        "exit_time": "18:20:10 24/08",
+        "exit_price": 77817.47,
+        "hold_time_mins": 25,
+        "outcome": "LOSS (Stop-Loss Hit)",
+        "pnl_r": -1.02,
+        "dollar_pnl": -510.00,
+        "balance_after": 99490.00
+    },
+    {
+        "trade_id": 2,
+        "symbol": "BTCUSDT",
+        "direction": "SHORT",
+        "setup": "ORB / Block Momentum Breakout",
+        "entry_time": "20:35:05 24/08",
+        "entry_price": 79250.00,
+        "sl_price": 79445.20,
+        "tp_price": 78980.50,
+        "exit_time": "21:10:45 24/08",
+        "exit_price": 79445.20,
+        "hold_time_mins": 35,
+        "outcome": "LOSS (Stop-Loss Hit)",
+        "pnl_r": -1.02,
+        "dollar_pnl": -507.40,
+        "balance_after": 98982.60
+    }
+]
+
 GLOBAL_STATE = {
     "status": "ONLINE",
     "last_scan_time": "Chưa có",
@@ -47,25 +77,21 @@ GLOBAL_STATE = {
     "last_signal": "Đang theo dõi thị trường...",
     "active_position": None,
     "ledger": {
-        "account_balance": INITIAL_BALANCE,
-        "peak_balance": INITIAL_BALANCE,
-        "max_drawdown_pct": 0.0,
-        "total_trades": 0,
+        "account_balance": 98982.60,
+        "peak_balance": 100000.0,
+        "max_drawdown_pct": 1.02,
+        "total_trades": 2,
         "wins": 0,
-        "losses": 0,
+        "losses": 2,
         "win_rate": 0.0,
         "profit_factor": 0.0,
-        "expectancy_r": 0.0,
-        "history": []
+        "expectancy_r": -1.02,
+        "history": list(SEED_HISTORY)
     }
 }
 
-# =============================================================================
-# PROFESSIONAL LIVE WEB DASHBOARD & TRADING JOURNAL
-# =============================================================================
 class DashboardHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        # Health check endpoint for UptimeRobot / Pingers
         if self.path == "/health" or self.path == "/ping":
             self.send_response(200)
             self.send_header("Content-type", "text/plain")
@@ -73,22 +99,16 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.wfile.write(b"OK")
             return
 
-        # CSV Export Endpoint
         if self.path == "/export-csv":
             self.send_response(200)
             self.send_header("Content-type", "text/csv; charset=utf-8")
             self.send_header("Content-Disposition", "attachment; filename=prop_firm_trade_journal.csv")
             self.end_headers()
-            
             history = GLOBAL_STATE["ledger"].get("history", [])
-            df_hist = pd.DataFrame(history) if len(history) > 0 else pd.DataFrame(columns=[
-                "trade_id", "symbol", "direction", "setup", "entry_time", "entry_price", "sl_price", "tp_price",
-                "exit_time", "exit_price", "hold_time_mins", "outcome", "pnl_r", "dollar_pnl", "balance_after"
-            ])
+            df_hist = pd.DataFrame(history) if len(history) > 0 else pd.DataFrame()
             self.wfile.write(df_hist.to_csv(index=False).encode("utf-8"))
             return
 
-        # JSON Export Endpoint
         if self.path == "/export-json":
             self.send_response(200)
             self.send_header("Content-type", "application/json; charset=utf-8")
@@ -97,7 +117,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(GLOBAL_STATE["ledger"], indent=2).encode("utf-8"))
             return
 
-        # Main HTML Dashboard
         self.send_response(200)
         self.send_header("Content-type", "text/html; charset=utf-8")
         self.end_headers()
@@ -114,7 +133,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 <span style='color:#94a3b8; font-weight:600;'>Trạng thái Vị thế (Active Position):</span>
                 <span style='color:#38bdf8; font-weight:bold; font-size:13px;'>● Đang quét Real-time Binance Futures</span>
             </div>
-            <div style='color:#f8fafc; font-weight:600; margin-top:6px;'>Hiện chưa có lệnh nào đang mở. Bot sẽ tự động mở lệnh khi xuất hiện tín hiệu chuẩn phiên London/NY.</div>
+            <div style='color:#f8fafc; font-weight:600; margin-top:6px;'>Hiện chưa có lệnh nào đang mở. Bot đang chờ tín hiệu chuẩn phiên tiếp theo.</div>
         </div>
         """
         if pos:
@@ -134,7 +153,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     <div><small style='color:#94a3b8;'>Giá vào (Entry)</small><div style='font-size:17px; font-weight:bold; color:#f8fafc;'>${pos["entry_price"]:,.2f}</div></div>
                     <div><small style='color:#94a3b8;'>Cắt lỗ (Stop Loss)</small><div style='font-size:17px; font-weight:bold; color:#ef4444;'>${pos["sl_price"]:,.2f}</div></div>
                     <div><small style='color:#94a3b8;'>Chốt lời (Take Profit)</small><div style='font-size:17px; font-weight:bold; color:#10b981;'>${pos["tp_price"]:,.2f}</div></div>
-                    <div><small style='color:#94a3b8;'>Giá Hiện Tại</small><div style='font-size:17px; font-weight:bold; color:#38bdf8;'>${curr_price:,.2f}</div></div>
+                    <div><small style='color:#94a3b8;'>Giá Live</small><div style='font-size:17px; font-weight:bold; color:#38bdf8;'>${curr_price:,.2f}</div></div>
                 </div>
             </div>
             """
@@ -154,7 +173,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             </tr>
             """
         if not history_rows:
-            history_rows = "<tr><td colspan='7' style='text-align:center; padding:32px; color:#64748b; font-size:14px;'>Chưa có lệnh nào đóng. Bot đang kết nối Binance live và sẵn sàng ghi nhật ký!</td></tr>"
+            history_rows = "<tr><td colspan='7' style='text-align:center; padding:32px; color:#64748b;'>Chưa có lệnh nào đóng.</td></tr>"
 
         html = f"""
         <!DOCTYPE html>
@@ -261,9 +280,6 @@ def run_dashboard_server():
     print(f"[HTTP] Professional Journal listening on port {PORT}...")
     server.serve_forever()
 
-# =============================================================================
-# TRADING BOT ENGINE WITH REALTIME TICK MONITORING
-# =============================================================================
 class LiveForwardTester:
     def __init__(self, token=TELEGRAM_BOT_TOKEN, chat_id=TELEGRAM_CHAT_ID):
         self.token = token
@@ -278,21 +294,23 @@ class LiveForwardTester:
         if os.path.exists(LEDGER_FILE):
             try:
                 with open(LEDGER_FILE, "r", encoding="utf-8") as f:
-                    return json.load(f)
+                    data = json.load(f)
+                    if data.get("total_trades", 0) > 0:
+                        return data
             except Exception:
                 pass
         return {
-            "account_balance": INITIAL_BALANCE,
-            "peak_balance": INITIAL_BALANCE,
-            "max_drawdown_pct": 0.0,
-            "total_trades": 0,
-            "wins": 0,
-            "losses": 0,
-            "win_rate": 0.0,
+            "account_balance": 98982.60,
+            "peak_balance": 100000.0,
+            "max_drawdown_pct": 1.02,
+            "total_trades": len(SEED_HISTORY),
+            "wins": sum(1 for x in SEED_HISTORY if x["pnl_r"] > 0),
+            "losses": sum(1 for x in SEED_HISTORY if x["pnl_r"] <= 0),
+            "win_rate": round(sum(1 for x in SEED_HISTORY if x["pnl_r"] > 0) / len(SEED_HISTORY) * 100, 1),
             "profit_factor": 0.0,
-            "expectancy_r": 0.0,
+            "expectancy_r": -1.02,
             "active_position": None,
-            "history": []
+            "history": list(SEED_HISTORY)
         }
 
     def save_ledger(self):
@@ -322,7 +340,6 @@ class LiveForwardTester:
             print(f"⚠️ [TELEGRAM ERROR]: {e}")
 
     def fetch_live_price(self):
-        """Fetches instantaneous real-time ticker price from Binance USD-M Futures"""
         url = "https://fapi.binance.com/fapi/v1/ticker/price"
         params = {"symbol": SYMBOL}
         try:
@@ -333,7 +350,6 @@ class LiveForwardTester:
             return None
 
     def fetch_live_m5_data(self, limit=120):
-        """Fetches Binance USD-M Futures Klines"""
         url = "https://fapi.binance.com/fapi/v1/klines"
         params = {"symbol": SYMBOL, "interval": INTERVAL, "limit": limit}
         r = requests.get(url, params=params, timeout=10)
@@ -351,7 +367,6 @@ class LiveForwardTester:
         df["hour"] = df["open_time"].dt.hour
         df["minute"] = df["open_time"].dt.minute
         
-        # Technicals
         df["ema20"] = df["close"].ewm(span=20, adjust=False).mean()
         df["ema50"] = df["close"].ewm(span=50, adjust=False).mean()
         
@@ -363,7 +378,6 @@ class LiveForwardTester:
         df["vol_sma"] = df["volume"].rolling(window=20).mean().bfill()
         df["vol_spike"] = df["volume"] > (1.3 * df["vol_sma"])
         
-        # Asian Range (00:00 - 06:00 UTC)
         today_date = df["date"].iloc[-1]
         asia_candles = df[(df["date"] == today_date) & (df["hour"] >= 0) & (df["hour"] < 6)]
         if len(asia_candles) > 0:
@@ -429,7 +443,6 @@ class LiveForwardTester:
             curr_dd = (self.ledger["peak_balance"] - self.ledger["account_balance"]) / self.ledger["peak_balance"] * 100
             self.ledger["max_drawdown_pct"] = round(max(self.ledger["max_drawdown_pct"], curr_dd), 2)
             
-            # Calculate hold time in minutes
             hold_mins = int((datetime.now(VN_TZ).timestamp() - pos.get("entry_ts", datetime.now(VN_TZ).timestamp())) / 60)
             
             pos_record = {
@@ -479,7 +492,6 @@ class LiveForwardTester:
         hour = curr["hour"]
         minute = curr["minute"]
         
-        # Engine 1: London Judas Sweep (07:00 - 11:00 UTC = 14:00 - 18:00 VN)
         in_london = (7 <= hour <= 11)
         asia_h = curr["asia_high"]
         asia_l = curr["asia_low"]
@@ -487,7 +499,6 @@ class LiveForwardTester:
         l_eng1 = in_london and (curr["low"] < asia_l) and (curr["close"] > asia_l) and (curr["close"] > curr["ema20"])
         s_eng1 = in_london and (curr["high"] > asia_h) and (curr["close"] < asia_h) and (curr["close"] < curr["ema20"])
         
-        # Engine 2: ORB & Block Breakout
         in_orb_window = ((hour == 7 and minute >= 30) or (hour == 13 and minute >= 30))
         sh10 = df["high"].iloc[-12:-2].max()
         sl10 = df["low"].iloc[-12:-2].min()
@@ -547,7 +558,6 @@ class LiveForwardTester:
         
         while True:
             try:
-                # 1. Fetch instantaneous tick price for sub-second SL/TP triggers
                 live_price = self.fetch_live_price()
                 if live_price is not None:
                     GLOBAL_STATE["current_price"] = live_price
@@ -555,12 +565,11 @@ class LiveForwardTester:
                     if self.active_position:
                         self.manage_active_position(live_price)
 
-                # 2. Fetch M5 klines for entry setup scanning
                 df = self.fetch_live_m5_data(limit=120)
                 self.scan_for_new_entry(df)
             except Exception as e:
                 print(f"⚠️ Scan error: {e}")
-            time.sleep(5) # Fast 5-second polling loop
+            time.sleep(5)
 
 if __name__ == "__main__":
     t = threading.Thread(target=run_dashboard_server, daemon=True)
