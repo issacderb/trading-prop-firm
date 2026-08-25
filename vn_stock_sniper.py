@@ -45,6 +45,8 @@ QUANT_TELEGRAM_CHAT_ID = os.getenv("QUANT_TELEGRAM_CHAT_ID", "7189062506").strip
 
 INITIAL_CAPITAL = float(os.getenv("INITIAL_CAPITAL", "1000000000.0"))  # 1 Tỷ VNĐ Vốn ban đầu
 VAULT_ANNUAL_RATE = float(os.getenv("VAULT_ANNUAL_RATE", "0.05"))     # 5.0% Lãi suất Két tiền mặt/năm
+MAX_ALLOC_PER_STOCK_PCT = float(os.getenv("MAX_ALLOC_PER_STOCK_PCT", "0.08")) # Tối đa 8% NAV / 1 mã (80 triệu/mã)
+MAX_HOLDINGS_COUNT = int(os.getenv("MAX_HOLDINGS_COUNT", "10"))       # Phân bổ từ 8 đến 10 mã
 PORT = int(os.getenv("VN_STOCK_PORT", os.getenv("PORT", "10001")))
 SCAN_INTERVAL_SECS = int(os.getenv("SCAN_INTERVAL_SECS", "300"))      # Quét thị trường mỗi 5 phút
 
@@ -333,12 +335,13 @@ class PortfolioLedger:
                 "trade_history": self.data.get("trade_history", [])
             }
 
-    def execute_staged_buy(self, ticker: str, price: float, tranche_step: int, reason: str, total_target_alloc: float = 100000000.0) -> dict:
+    def execute_staged_buy(self, ticker: str, price: float, tranche_step: int, reason: str, total_target_alloc: float = 80000000.0) -> dict:
         """
         Thực hiện giải ngân từng phần (Staged Scaling-in 3 Nấc):
-        - Tranche 1 (Nấc 1 - 35%): Thăm dò tại nến Stopping Volume / Sweep Quét Đáy
-        - Tranche 2 (Nấc 2 - 35%): Gia tăng khi Test Đáy cạn kiệt Volume / Đáy sau cao hơn
-        - Tranche 3 (Nấc 3 - 30%): Hoàn tất khi Bứt phá CHoCH xác nhận đảo chiều
+        - Tổng hạn mức cho 1 mã: Tối đa 8% NAV (80 Triệu VNĐ / Vốn 1 Tỷ)
+        - Tranche 1 (Nấc 1 - 35%): Thăm dò ~28 Triệu VNĐ
+        - Tranche 2 (Nấc 2 - 35%): Gia tăng ~28 Triệu VNĐ
+        - Tranche 3 (Nấc 3 - 30%): Hoàn tất ~24 Triệu VNĐ
         """
         with self.lock:
             cash = self.data.get("cash_vault", 0.0)
