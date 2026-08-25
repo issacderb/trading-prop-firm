@@ -1,7 +1,7 @@
 services:
   # UNIFIED MASTER SERVICE: Chạy song song cả Bot Crypto & Bot Cổ Phiếu VN trên 1 Web Service duy nhất (Free 100%)
   - type: web
-    name: dual-quant-terminal
+    name: trading-prop-firm
     env: python
     plan: free
     buildCommand: pip install -r requirements.txt
