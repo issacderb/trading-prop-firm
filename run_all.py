@@ -67,7 +67,7 @@ class UnifiedDashboardHandler(BaseHTTPRequestHandler):
             <tr>
                 <td colspan="8" style="text-align: center; color: #94a3b8; padding: 24px;">
                     🏖️ Danh mục hiện đang giữ <strong>100% Tiền Mặt trong Két 5%</strong> để ăn lãi hàng ngày.<br>
-                    Bot đang rình quét thị trường, khi có cổ phiếu rơi vào <strong>Vùng Mua Chiết Khấu (MoS 20%)</strong> sẽ tự động giải ngân và ghi nhận vào đây!
+                    Bot đang rình quét thị trường, khi có cổ phiếu rơi vào <strong>Vùng Mua Chiết Khấu MoS</strong> hoặc <strong>Mẩu Xì Gà P/B &le; 0.70</strong> sẽ tự động giải ngân và ghi nhận vào đây!
                 </td>
             </tr>
             """
@@ -88,22 +88,38 @@ class UnifiedDashboardHandler(BaseHTTPRequestHandler):
                 </tr>
                 """
 
-        # Stock Watchlist Table
-        stock_wl_rows = ""
-        for w in stock_engine.GLOBAL_WATCHLIST_DATA:
+        # 1. Quality Moat Table
+        moat_rows = ""
+        for w in (stock_engine.GLOBAL_MOAT_DATA or stock_engine.GLOBAL_WATCHLIST_DATA[:15]):
             badge_bg = "#065f46" if "VÙNG MUA" in w["status"] else ("#854d0e" if "CHỜ CHỈNH" in w["status"] else "#991b1b")
             badge_color = "#6ee7b7" if "VÙNG MUA" in w["status"] else ("#fde047" if "CHỜ CHỈNH" in w["status"] else "#fca5a5")
-            stock_wl_rows += f"""
+            moat_rows += f"""
             <tr>
-                <td style="font-weight: bold; color: #38bdf8; font-size: 15px;">{w['ticker']}</td>
+                <td style="font-weight: bold; color: #38bdf8; font-size: 14px;">{w['ticker']}</td>
                 <td>{w['name']}</td>
                 <td><strong style="color: #f8fafc;">{w['price']:,.0f} đ</strong></td>
                 <td style="color: #fbbf24;">{w['fair_value']:,.0f} đ</td>
                 <td style="color: #34d399; font-weight: bold;">{w['discount_price']:,.0f} đ</td>
                 <td style="color: #a7f3d0;">{w['roe']}%</td>
                 <td>{w['pe']}</td>
-                <td>{w['volume_10d']:,.0f}</td>
-                <td><span style="background: {badge_bg}; color: {badge_color}; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: bold;">{w['status']}</span></td>
+                <td><span style="background: {badge_bg}; color: {badge_color}; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: bold;">{w['status']}</span></td>
+            </tr>
+            """
+
+        # 2. Cigar Butt Table (UPCoM / HNX Deep Value)
+        cigar_rows = ""
+        for w in (stock_engine.GLOBAL_CIGAR_DATA or stock_engine.GLOBAL_WATCHLIST_DATA[15:]):
+            badge_bg = "#065f46" if "VÙNG MUA" in w["status"] else ("#854d0e" if "THEO DÕI" in w["status"] else "#991b1b")
+            badge_color = "#6ee7b7" if "VÙNG MUA" in w["status"] else ("#fde047" if "THEO DÕI" in w["status"] else "#fca5a5")
+            cigar_rows += f"""
+            <tr>
+                <td style="font-weight: bold; color: #fbbf24; font-size: 14px;">{w['ticker']}</td>
+                <td>{w['name']}</td>
+                <td><strong style="color: #f8fafc;">{w['price']:,.0f} đ</strong></td>
+                <td style="color: #38bdf8; font-weight: bold;">{w['pb']}x</td>
+                <td style="color: #34d399; font-weight: bold;">{w['fair_value']:,.0f} đ</td>
+                <td style="color: #a7f3d0;">{w['roe']}%</td>
+                <td><span style="background: {badge_bg}; color: {badge_color}; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: bold;">{w['status']}</span></td>
             </tr>
             """
 
@@ -193,7 +209,7 @@ class UnifiedDashboardHandler(BaseHTTPRequestHandler):
                 <div class="header">
                     <div class="title-box">
                         <h1>🚀 DUAL-QUANT MASTER TERMINAL</h1>
-                        <p style="color: #94a3b8; font-size: 13px; margin-top: 4px;">Hệ Thống Forward Test 2 Trong 1: Crypto Prop Firm & Cổ Phiếu Việt Nam (Buffett Sniper)</p>
+                        <p style="color: #94a3b8; font-size: 13px; margin-top: 4px;">Hệ Thống Forward Test 2 Trong 1: Crypto Prop Firm & Cổ Phiếu Việt Nam (Buffett Moat + Cigar Butt)</p>
                     </div>
                     <div>
                         <span class="badge-online"><span class="dot"></span> CẢ 2 ENGINE ĐANG CHẠY 24/7</span>
@@ -202,7 +218,7 @@ class UnifiedDashboardHandler(BaseHTTPRequestHandler):
 
                 <!-- TAB SWITCHER -->
                 <div class="tab-nav">
-                    <button id="btn-tab-stock" class="tab-btn active" onclick="switchTab('tab-stock', this)">🇻🇳 CHỨNG KHOÁN VIỆT NAM (BUFFETT & KÉT 5%)</button>
+                    <button id="btn-tab-stock" class="tab-btn active" onclick="switchTab('tab-stock', this)">🇻🇳 CHỨNG KHOÁN VIỆT NAM (MOAT & CIGAR BUTT)</button>
                     <button id="btn-tab-crypto" class="tab-btn" onclick="switchTab('tab-crypto', this)">🤖 CRYPTO PROP FIRM (BINANCE M5)</button>
                     <button id="btn-tab-split" class="tab-btn" onclick="switchTab('tab-split', this)">📊 XEM SONG SONG CẢ HAI</button>
                 </div>
@@ -249,16 +265,32 @@ class UnifiedDashboardHandler(BaseHTTPRequestHandler):
                         </div>
                     </div>
 
-                    <div class="card">
-                        <h2>🎯 Bảng Theo Dõi Định Giá & Vùng Mua Chiết Khấu (MoS 20%)</h2>
+                    <!-- BẢNG 1: DOANH NGHIỆP VĨ ĐẠI -->
+                    <div class="card" style="border-top: 3px solid #38bdf8;">
+                        <h2>🏰 Bảng 1: Top Doanh Nghiệp Vĩ Đại (Quality Moat - HOSE Bluechips)</h2>
                         <div style="overflow-x: auto;">
                             <table>
                                 <thead>
                                     <tr>
-                                        <th>Mã CP</th><th>Tên Doanh Nghiệp</th><th>Thị giá</th><th>Giá trị Hợp lý</th><th>Vùng Mua MoS 20%</th><th>ROE (%)</th><th>P/E</th><th>KL 10 phiên</th><th>Trạng Thái</th>
+                                        <th>Mã CP</th><th>Tên Doanh Nghiệp</th><th>Thị giá</th><th>Giá trị Hợp lý</th><th>Vùng Mua MoS 20%</th><th>ROE (%)</th><th>P/E</th><th>Trạng Thái</th>
                                     </tr>
                                 </thead>
-                                <tbody>{stock_wl_rows}</tbody>
+                                <tbody>{moat_rows}</tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- BẢNG 2: MẨU TÀN XÌ GÀ -->
+                    <div class="card" style="border-top: 3px solid #fbbf24;">
+                        <h2>🚬 Bảng 2: Săn Mẩu Tàn Xì Gà Siêu Rẻ & Cổ Tức (Cigar Butt / Net-Net UPCoM/HNX)</h2>
+                        <div style="overflow-x: auto;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Mã CP</th><th>Tên Doanh Nghiệp</th><th>Thị giá</th><th>Định giá P/B</th><th>Mục tiêu Thanh lý (100% NCAV)</th><th>ROE (%)</th><th>Trạng Thái</th>
+                                    </tr>
+                                </thead>
+                                <tbody>{cigar_rows}</tbody>
                             </table>
                         </div>
                     </div>
@@ -339,7 +371,7 @@ class UnifiedDashboardHandler(BaseHTTPRequestHandler):
                             <div style="overflow-x: auto;">
                                 <table>
                                     <thead><tr><th>Mã CP</th><th>Thị giá</th><th>MoS 20%</th><th>Trạng thái</th></tr></thead>
-                                    <tbody>{stock_wl_rows[:1500]}</tbody>
+                                    <tbody>{moat_rows[:1500]}</tbody>
                                 </table>
                             </div>
                         </div>
@@ -389,7 +421,7 @@ class UnifiedDashboardHandler(BaseHTTPRequestHandler):
                     fetch('/api/stock/scan')
                         .then(function(r) {{ return r.json(); }})
                         .then(function(d) {{
-                            alert('Đã kích hoạt quét thị trường Cổ Phiếu VN và gửi bản tin về Telegram @Warrenbvaluebot!');
+                            alert('Đã kích hoạt quét thị trường Cổ Phiếu VN và gửi bản tin về Telegram @Lastsmokewbbot!');
                             setTimeout(function() {{ location.reload(); }}, 2000);
                         }});
                 }}

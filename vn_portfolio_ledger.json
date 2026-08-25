@@ -1,13 +1,13 @@
 {
   "initial_capital": 1000000000.0,
-  "cash_vault": 328180000.0,
+  "cash_vault": 16325000.0,
   "vault_annual_rate": 0.05,
   "vault_interest_earned": 0.0,
   "last_interest_calc_time": "2026-08-25",
   "holdings": [
     {
       "ticker": "VNM",
-      "shares": 1500,
+      "shares": 2500,
       "avg_price": 63100.0,
       "current_price": 63100.0,
       "dividends_received": 0.0,
@@ -15,7 +15,7 @@
     },
     {
       "ticker": "DGC",
-      "shares": 2200,
+      "shares": 3600,
       "avg_price": 44250.0,
       "current_price": 44250.0,
       "dividends_received": 0.0,
@@ -23,7 +23,7 @@
     },
     {
       "ticker": "PNJ",
-      "shares": 2400,
+      "shares": 3900,
       "avg_price": 41550.0,
       "current_price": 41550.0,
       "dividends_received": 0.0,
@@ -31,7 +31,7 @@
     },
     {
       "ticker": "MWG",
-      "shares": 1300,
+      "shares": 2100,
       "avg_price": 75000.0,
       "current_price": 75000.0,
       "dividends_received": 0.0,
@@ -39,7 +39,7 @@
     },
     {
       "ticker": "MBB",
-      "shares": 4800,
+      "shares": 7900,
       "avg_price": 20800.0,
       "current_price": 20800.0,
       "dividends_received": 0.0,
@@ -63,6 +63,51 @@
     }
   ],
   "trade_history": [
+    {
+      "timestamp": "12:36:28 25/08/2026",
+      "ticker": "MBB",
+      "action": "SNIPER_BUY",
+      "shares": 3100,
+      "price": 20800.0,
+      "amount": 64480000.0,
+      "reason": "Đạt Biên an toàn 20% (Giá 20,800 đ ≤ Mục tiêu 28,501 đ, ROE 21.683232800578974%)"
+    },
+    {
+      "timestamp": "12:36:27 25/08/2026",
+      "ticker": "MWG",
+      "action": "SNIPER_BUY",
+      "shares": 800,
+      "price": 75000.0,
+      "amount": 60000000.0,
+      "reason": "Đạt Biên an toàn 20% (Giá 75,000 đ ≤ Mục tiêu 88,380 đ, ROE 30.074105755761476%)"
+    },
+    {
+      "timestamp": "12:36:26 25/08/2026",
+      "ticker": "PNJ",
+      "action": "SNIPER_BUY",
+      "shares": 1500,
+      "price": 41550.0,
+      "amount": 62325000.0,
+      "reason": "Đạt Biên an toàn 20% (Giá 41,550 đ ≤ Mục tiêu 55,810 đ, ROE 22.39516931367931%)"
+    },
+    {
+      "timestamp": "12:36:25 25/08/2026",
+      "ticker": "DGC",
+      "action": "SNIPER_BUY",
+      "shares": 1400,
+      "price": 44250.0,
+      "amount": 61950000.0,
+      "reason": "Đạt Biên an toàn 20% (Giá 44,250 đ ≤ Mục tiêu 45,727 đ, ROE 14.831782290287865%)"
+    },
+    {
+      "timestamp": "12:36:24 25/08/2026",
+      "ticker": "VNM",
+      "action": "SNIPER_BUY",
+      "shares": 1000,
+      "price": 63100.0,
+      "amount": 63100000.0,
+      "reason": "Đạt Biên an toàn 20% (Giá 63,100 đ ≤ Mục tiêu 71,035 đ, ROE 30.77738764013842%)"
+    },
     {
       "timestamp": "11:52:04 25/08/2026",
       "ticker": "BMP",
