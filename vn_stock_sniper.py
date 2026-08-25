@@ -169,80 +169,20 @@ class PortfolioLedger:
 
         initial_state = {
             "initial_capital": INITIAL_CAPITAL,
-            "cash_vault": INITIAL_CAPITAL * 0.40,  # 40% Vốn gửi Két tiền mặt 5%/năm
+            "cash_vault": INITIAL_CAPITAL,  # 100% Vốn gửi Két tiền mặt 5%/năm từ ngày đầu
             "vault_annual_rate": VAULT_ANNUAL_RATE,
             "vault_interest_earned": 0.0,
             "last_interest_calc_time": get_vn_time().strftime("%Y-%m-%d"),
-            "holdings": [
-                {
-                    "ticker": "FPT",
-                    "shares": 2500,
-                    "avg_price": 68000.0,
-                    "current_price": 71400.0,
-                    "dividends_received": 5000000.0,
-                    "notes": "Vị thế chiến lược - Tăng trưởng phần mềm toàn cầu"
-                },
-                {
-                    "ticker": "DGC",
-                    "shares": 3000,
-                    "avg_price": 41500.0,
-                    "current_price": 44300.0,
-                    "dividends_received": 6000000.0,
-                    "notes": "Vị thế chiến lược - Độc quyền Phốt pho vàng"
-                },
-                {
-                    "ticker": "PNJ",
-                    "shares": 3500,
-                    "avg_price": 39500.0,
-                    "current_price": 41700.0,
-                    "dividends_received": 3500000.0,
-                    "notes": "Vị thế chiến lược - Bán lẻ trang sức hàng đầu"
-                },
-                {
-                    "ticker": "HPG",
-                    "shares": 6000,
-                    "avg_price": 21000.0,
-                    "current_price": 22050.0,
-                    "dividends_received": 0.0,
-                    "notes": "Vị thế chiết khấu - Chu kỳ thép Dung Quất 2"
-                }
-            ],
+            "holdings": [],
             "trade_history": [
                 {
                     "timestamp": get_vn_time_str(),
-                    "ticker": "FPT",
-                    "action": "BUY_INITIAL",
-                    "shares": 2500,
-                    "price": 68000.0,
-                    "amount": 170000000.0,
-                    "reason": "Giải ngân vị thế nền tảng (ROE 27%, Moat phần mềm)"
-                },
-                {
-                    "timestamp": get_vn_time_str(),
-                    "ticker": "DGC",
-                    "action": "BUY_INITIAL",
-                    "shares": 3000,
-                    "price": 41500.0,
-                    "amount": 124500000.0,
-                    "reason": "Giải ngân vị thế chiết khấu (ROE cao, Tiền mặt lớn)"
-                },
-                {
-                    "timestamp": get_vn_time_str(),
-                    "ticker": "PNJ",
-                    "action": "BUY_INITIAL",
-                    "shares": 3500,
-                    "price": 39500.0,
-                    "amount": 138250000.0,
-                    "reason": "Giải ngân vị thế nền tảng (Thị phần bán lẻ trang sức)"
-                },
-                {
-                    "timestamp": get_vn_time_str(),
-                    "ticker": "HPG",
-                    "action": "BUY_INITIAL",
-                    "shares": 6000,
-                    "price": 21000.0,
-                    "amount": 126000000.0,
-                    "reason": "Giải ngân gom mua vùng chiết khấu P/B ~ 1.2"
+                    "ticker": "CASH",
+                    "action": "DEPOSIT",
+                    "shares": 0,
+                    "price": 0.0,
+                    "amount": INITIAL_CAPITAL,
+                    "reason": "Khởi tạo vốn ban đầu 1 Tỷ VNĐ vào Két tiền mặt 5%/năm (Fresh Start)"
                 }
             ],
             "created_at": get_vn_time_str()
