@@ -10,3 +10,5 @@ package-lock.json
 bun.lockb
 pnpm-lock.yaml
 yarn.lock
+__pycache__/
+*.pyc

@@ -1,11 +1,13 @@
 services:
-  - type: worker
-    name: prop-firm-quant-bot
+  # UNIFIED MASTER SERVICE: Chạy song song cả Bot Crypto & Bot Cổ Phiếu VN trên 1 Web Service duy nhất (Free 100%)
+  - type: web
+    name: dual-quant-terminal
     env: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: python -u main.py
+    startCommand: python -u run_all.py
     envVars:
+      # Cấu hình Telegram cho Bot Crypto Prop Firm (Bot 1)
       - key: TELEGRAM_BOT_TOKEN
         sync: false
       - key: TELEGRAM_CHAT_ID
@@ -16,3 +18,15 @@ services:
         value: 5m
       - key: RISK_PER_TRADE_PCT
         value: "0.005"
+
+      # Cấu hình Telegram riêng cho Bot Cổ Phiếu Việt Nam (Bot 2)
+      - key: VN_STOCK_TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: VN_STOCK_TELEGRAM_CHAT_ID
+        sync: false
+      - key: INITIAL_CAPITAL
+        value: "1000000000"
+      - key: VAULT_ANNUAL_RATE
+        value: "0.05"
+      - key: PORT
+        value: "10000"
