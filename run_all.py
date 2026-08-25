@@ -358,40 +358,44 @@ class UnifiedDashboardHandler(BaseHTTPRequestHandler):
             </div>
 
             <script>
-                function switchTab(tabId, el) {
-                    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-                    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+                function switchTab(tabId, el) {{
+                    document.querySelectorAll('.tab-btn').forEach(function(btn) {{
+                        btn.classList.remove('active');
+                    }});
+                    document.querySelectorAll('.tab-content').forEach(function(content) {{
+                        content.classList.remove('active');
+                    }});
                     
                     var target = document.getElementById(tabId);
                     if (target) target.classList.add('active');
-                    if (el) {
+                    if (el) {{
                         el.classList.add('active');
-                    } else {
+                    }} else {{
                         var b = document.getElementById('btn-' + tabId);
                         if (b) b.classList.add('active');
-                    }
-                }
+                    }}
+                }}
 
                 // Check URL params on load
-                window.addEventListener('DOMContentLoaded', () => {
-                    const urlParams = new URLSearchParams(window.location.search);
-                    const tab = urlParams.get('tab');
+                window.addEventListener('DOMContentLoaded', function() {{
+                    var urlParams = new URLSearchParams(window.location.search);
+                    var tab = urlParams.get('tab');
                     if (tab === 'crypto') switchTab('tab-crypto');
                     else if (tab === 'split') switchTab('tab-split');
                     else if (tab === 'stock') switchTab('tab-stock');
-                });
+                }});
 
-                function triggerStockScan() {
+                function triggerStockScan() {{
                     fetch('/api/stock/scan')
-                        .then(r => r.json())
-                        .then(d => {
+                        .then(function(r) {{ return r.json(); }})
+                        .then(function(d) {{
                             alert('Đã kích hoạt quét thị trường Cổ Phiếu VN và gửi bản tin về Telegram @Warrenbvaluebot!');
-                            setTimeout(() => location.reload(), 2000);
-                        });
-                }
+                            setTimeout(function() {{ location.reload(); }}, 2000);
+                        }});
+                }}
 
                 // Tự động làm mới trang mỗi 30 giây
-                setInterval(() => location.reload(), 30000);
+                setInterval(function() {{ location.reload(); }}, 30000);
             </script>
         </body>
         </html>
