@@ -452,39 +452,7 @@ def run_market_scan(force_notify=False):
     LEDGER.accrue_daily_vault_interest()
     summary = LEDGER.get_portfolio_summary()
 
-    # KHI PHÁT HIỆN CỔ PHIẾU VÀO VÙNG RÌNH (ARMED):
-    # Hệ thống KHÔNG TỰ ĐỘNG MUA MÙ QUÁNG mà gửi thông báo Vùng Rình.
-    # 100% Tiền vẫn nằm trong Két 5% đẻ lãi cho đến khi có xác nhận nến Stopping Vol / CHoCH!
-    for opp in sniper_opportunities:
-        ticker = opp["ticker"]
-        cat = opp.get("category", "MOAT")
-        curr_holding = next((h for h in summary["holdings"] if h["ticker"] == ticker), None)
-        
-        if not curr_holding:
-            if cat == "CIGAR_BUTT":
-                tag_title = "🚬 [CIGAR BUTT - LAST SMOKE] 🎯 ĐÃ LỌT VÀO VÙNG RÌNH (ARMED)"
-                reason = f"Định giá siêu rẻ P/B {opp['pb']}x ≤ 0.70x (Chiết khấu so với NCAV)"
-            else:
-                tag_title = "🏰 [QUALITY MOAT - BLUECHIP] 🎯 ĐÃ LỌT VÀO VÙNG RÌNH (ARMED)"
-                reason = f"Đạt Biên an toàn MoS 20% (Giá {opp['price']:,.0f} đ ≤ Mục tiêu {opp['discount_price']:,.0f} đ)"
-
-            msg_armed = (
-                f"{tag_title}\n\n"
-                f"🏢 *Cổ phiếu:* `{ticker}` - {opp['name']}\n"
-                f"💵 *Thị giá hiện tại:* `{opp['price']:,.0f} VNĐ`\n"
-                f"🎯 *Vùng Chiết khấu MoS:* `{opp['discount_price']:,.0f} VNĐ`\n"
-                f"💎 *Định giá Hợp lý:* `{opp['fair_value']:,.0f} VNĐ`\n"
-                f"📊 *Chỉ số:* P/B `{opp['pb']}x` | P/E `{opp['pe']}` | ROE `{opp['roe']}%`\n\n"
-                f"🛡️ *Hành động:* *CHƯA GIẢI NGÂN NGAY!* Hệ thống đưa vào diện *ĐANG RÌNH (OBSERVE MODE)*.\n"
-                f"🏦 *Vốn:* 100% Tiền mặt *tiếp tục nằm trong Két 5%/năm* để ăn lãi hàng ngày và chờ nến *Stopping Volume / Sweep Quét Đáy* để kích hoạt Nấc 1!\n"
-                f"⏰ *Thời gian:* {get_vn_time_str()}"
-            )
-            if cat == "CIGAR_BUTT":
-                send_telegram_cigar(msg_armed)
-            else:
-                send_telegram_value(msg_armed)
-            send_telegram_quant(msg_armed)
-
+    # Quét thị trường ngầm, chỉ gửi tin nhắn định kỳ hoặc khi có lệnh khớp thật
     if force_notify:
         send_daily_summary_telegram()
 
@@ -493,7 +461,7 @@ def send_daily_summary_telegram():
     
     holdings_text = ""
     if len(summary["holdings"]) == 0:
-        holdings_text = "• _Đang giữ 100% Tiền mặt trong Két 5% (Sẵn sàng giải ngân Nấc 1)_\n"
+        holdings_text = "• _Đang giữ 100% Tiền mặt trong Két 5% (Chưa giải ngân mã nào)_\n"
     else:
         for h in summary["holdings"]:
             pnl_emoji = "🟢" if h["pnl"] >= 0 else "🔴"
@@ -505,67 +473,68 @@ def send_daily_summary_telegram():
                 f"  ↳ _{tranche_info}_\n"
             )
 
-    moat_text = ""
-    for w in GLOBAL_MOAT_DATA[:6]:
-        moat_text += f"• `{w['ticker']:4}`: Giá `{w['price']:,.0f}` | MoS: `{w['discount_price']:,.0f}` | ROE: `{w['roe']}%` | {w['status']}\n"
-
-    cigar_text = ""
-    for w in GLOBAL_CIGAR_DATA[:6]:
-        cigar_text += f"• `{w['ticker']:4}`: Giá `{w['price']:,.0f}` | P/B: `{w['pb']}x` | Mục tiêu: `{w['fair_value']:,.0f}` | {w['status']}\n"
-
     pnl_sign = "+" if summary["total_profit"] >= 0 else ""
-    
-    # 1. BẢN TIN CHO BOT WARREN BUFFETT VALUE (@Warrenbvaluebot)
+
+    # =========================================================================
+    # 1. BOT WARREN BUFFETT VALUE (@Warrenbvaluebot) - THEO DÕI DOANH NGHIỆP VĨ ĐẠI
+    # =========================================================================
+    moat_list_text = ""
+    for w in GLOBAL_MOAT_DATA[:8]:
+        moat_list_text += f"• `{w['ticker']:4}` | Giá: `{w['price']:>7,.0f}` | MoS 20%: `{w['discount_price']:>7,.0f}` | ROE: `{w['roe']:>4.1f}%` | {w['status']}\n"
+
     msg_value = (
-        f"🏰 *[WARREN BUFFETT VALUE & MOAT TERMINAL]*\n"
-        f"📅 *Thời gian:* {get_vn_time_str()}\n\n"
+        f"🏰 *[WARREN BUFFETT QUALITY WATCHLIST]*\n"
+        f"📅 *Cập nhật:* {get_vn_time_str()}\n\n"
         f"💰 *TỔNG TÀI SẢN (NAV):* `{summary['total_nav']:,.0f} VNĐ`\n"
-        f"📈 *Lợi nhuận ròng:* `{pnl_sign}{summary['total_profit']:,.0f} VNĐ` (`{pnl_sign}{summary['total_return_pct']}%`)\n"
         f"🏦 *Két Tiền Mặt 5%/năm:* `{summary['cash_vault']:,.0f} VNĐ` (`{summary['cash_pct']}%`)\n"
         f"✨ *Lãi Két 5% tích lũy:* `+{summary['vault_interest_earned']:,.0f} VNĐ`\n\n"
-        f"📋 *DANH MỤC CỔ PHIẾU NẮM GIỮ:*\n"
-        f"{holdings_text}\n"
-        f"🎯 *TOP DOANH NGHIỆP VĨ ĐẠI (QUALITY MOAT - HOSE):*\n"
-        f"{moat_text}"
+        f"📋 *DANH SÁCH THEO DÕI DOANH NGHIỆP VĨ ĐẠI (HOSE):*\n"
+        f"{moat_list_text}\n"
+        f"📦 *Danh mục hiện tại:*\n"
+        f"{holdings_text}"
     )
     send_telegram_value(msg_value)
 
-    # 2. BẢN TIN CHO BOT LAST SMOKE CIGAR BUTT (@Lastsmokewbbot)
+    # =========================================================================
+    # 2. BOT LAST SMOKE CIGAR BUTT (@Lastsmokewbbot) - THEO DÕI MẨU TÀN XÌ GÀ UPCoM
+    # =========================================================================
+    cigar_list_text = ""
+    for w in GLOBAL_CIGAR_DATA[:8]:
+        cigar_list_text += f"• `{w['ticker']:4}` | Giá: `{w['price']:>7,.0f}` | P/B: `{w['pb']:>4.1f}x` | Mục tiêu: `{w['fair_value']:>7,.0f}` | {w['status']}\n"
+
     msg_cigar = (
-        f"🚬 *[LAST SMOKE - CIGAR BUTT NET-NET TERMINAL]*\n"
-        f"📅 *Thời gian:* {get_vn_time_str()}\n\n"
+        f"🚬 *[LAST SMOKE - CIGAR BUTT WATCHLIST]*\n"
+        f"📅 *Cập nhật:* {get_vn_time_str()}\n\n"
         f"💰 *TỔNG TÀI SẢN (NAV):* `{summary['total_nav']:,.0f} VNĐ`\n"
-        f"📈 *Lợi nhuận ròng:* `{pnl_sign}{summary['total_profit']:,.0f} VNĐ` (`{pnl_sign}{summary['total_return_pct']}%`)\n"
         f"🏦 *Két Tiền Mặt 5%/năm:* `{summary['cash_vault']:,.0f} VNĐ` (`{summary['cash_pct']}%`)\n"
         f"✨ *Lãi Két 5% tích lũy:* `+{summary['vault_interest_earned']:,.0f} VNĐ`\n\n"
-        f"📋 *DANH MỤC CỔ PHIẾU NẮM GIỮ:*\n"
-        f"{holdings_text}\n"
-        f"🎯 *TOP MẨU TÀN XÌ GÀ SIÊU RẺ & CỔ TỨC (UPCoM/HNX):*\n"
-        f"{cigar_text}"
+        f"📋 *DANH SÁCH THEO DÕI MẨU TÀN XÌ GÀ (UPCoM/HNX):*\n"
+        f"{cigar_list_text}\n"
+        f"📦 *Danh mục hiện tại:*\n"
+        f"{holdings_text}"
     )
     send_telegram_cigar(msg_cigar)
 
-    # 3. BẢN TIN CHO BOT QUANTAMENTAL 3-TRANCHE SNIPER (@Vipvltradebot)
-    armed_moat = [w for w in GLOBAL_MOAT_DATA if "VÙNG MUA" in w["status"] or "CHỜ CHỈNH" in w["status"]][:3]
-    armed_cigar = [w for w in GLOBAL_CIGAR_DATA if "VÙNG MUA" in w["status"] or "THEO DÕI" in w["status"]][:3]
-    
+    # =========================================================================
+    # 3. BOT QUANTAMENTAL 3-TRANCHE SNIPER (@Vipvltradebot) - TIẾN ĐỘ RÌNH KỸ THUẬT
+    # =========================================================================
+    armed_list = [w for w in GLOBAL_WATCHLIST_DATA if "VÙNG RÌNH" in w["status"] or "CHỜ CHỈNH" in w["status"] or "THEO DÕI" in w["status"]][:8]
     armed_text = ""
-    for w in (armed_moat + armed_cigar):
-        armed_text += f"• `{w['ticker']:4}`: Thị giá `{w['price']:,.0f}` | Vùng Rình: `{w['discount_price']:,.0f}` | {w['status']}\n"
+    for w in armed_list:
+        armed_text += f"• `{w['ticker']:4}` | Giá: `{w['price']:>7,.0f}` | Vùng Rình: `{w['discount_price']:>7,.0f}` | {w['status']}\n"
     if not armed_text:
-        armed_text = "• _Hiện chưa có mã nào lọt vào Vùng Rình. 100% tiền tiếp tục ở Két 5% đẻ lãi._\n"
+        armed_text = "• _Hiện chưa có mã nào chạm vùng rình. 100% tiền nằm Két 5% đẻ lãi._\n"
 
     msg_quant = (
-        f"🎯 *[QUANTAMENTAL 3-TRANCHE SNIPER TERMINAL]*\n"
-        f"📅 *Thời gian:* {get_vn_time_str()}\n\n"
+        f"🎯 *[QUANTAMENTAL 3-TRANCHE SNIPER WATCHLIST]*\n"
+        f"📅 *Cập nhật:* {get_vn_time_str()}\n\n"
         f"💰 *TỔNG TÀI SẢN (NAV):* `{summary['total_nav']:,.0f} VNĐ`\n"
-        f"📈 *Lợi nhuận ròng:* `{pnl_sign}{summary['total_profit']:,.0f} VNĐ` (`{pnl_sign}{summary['total_return_pct']}%`)\n"
-        f"🏦 *Két Tiền Mặt 5%/năm:* `{summary['cash_vault']:,.0f} VNĐ` (`{summary['cash_pct']}%` vốn chờ Nấc 2/3)\n"
+        f"🏦 *Két Tiền Mặt 5%/năm:* `{summary['cash_vault']:,.0f} VNĐ` (`{summary['cash_pct']}%` chờ giải ngân)\n"
         f"✨ *Lãi Két 5% tích lũy:* `+{summary['vault_interest_earned']:,.0f} VNĐ`\n\n"
-        f"📋 *TIẾN ĐỘ GIẢI NGÂN CÁC VỊ THẾ (TRANCHES):*\n"
-        f"{holdings_text}\n"
-        f"🏹 *DANH SÁCH ĐANG RÌNH TÍN HIỆU KỸ THUẬT (ARMED LIST):*\n"
-        f"{armed_text}"
+        f"🏹 *DANH SÁCH THEO DÕI RÌNH KỸ THUẬT (ARMED LIST):*\n"
+        f"{armed_text}\n"
+        f"📦 *Tiến độ các Tranche vị thế:*\n"
+        f"{holdings_text}"
     )
     send_telegram_quant(msg_quant)
 
