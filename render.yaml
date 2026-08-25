@@ -5,13 +5,13 @@ services:
     env: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: python -u run_all.py
+    startCommand: python -u main.py
     envVars:
       # Cấu hình Telegram cho Bot Crypto Prop Firm (Bot 1)
       - key: TELEGRAM_BOT_TOKEN
-        sync: false
+        value: "8759863642:AAHkemnfZf44nzDdj5WTa_Ll6m4zcMJaFnc"
       - key: TELEGRAM_CHAT_ID
-        sync: false
+        value: "7189062506"
       - key: SYMBOL
         value: BTCUSDT
       - key: INTERVAL
