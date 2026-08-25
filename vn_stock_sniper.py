@@ -324,14 +324,23 @@ class PortfolioLedger:
                 "trade_history": self.data.get("trade_history", [])
             }
 
-    def execute_sniper_buy(self, ticker: str, price: float, reason: str, allocation_amount: float = 80000000.0) -> bool:
-        """Thực hiện mua khi cổ phiếu rơi vào Vùng Chiết Khấu (MoS 20%)"""
+    def execute_staged_buy(self, ticker: str, price: float, tranche_step: int, reason: str, total_target_alloc: float = 100000000.0) -> dict:
+        """
+        Thực hiện giải ngân từng phần (Staged Scaling-in 3 Nấc):
+        - Tranche 1 (Nấc 1 - 35%): Thăm dò tại nến Stopping Volume / Sweep Quét Đáy
+        - Tranche 2 (Nấc 2 - 35%): Gia tăng khi Test Đáy cạn kiệt Volume / Đáy sau cao hơn
+        - Tranche 3 (Nấc 3 - 30%): Hoàn tất khi Bứt phá CHoCH xác nhận đảo chiều
+        """
         with self.lock:
             cash = self.data.get("cash_vault", 0.0)
-            if cash < allocation_amount * 0.9:
-                return False
+            tranche_ratios = {1: 0.35, 2: 0.35, 3: 0.30}
+            ratio = tranche_ratios.get(tranche_step, 0.35)
+            alloc = total_target_alloc * ratio
 
-            shares = int((allocation_amount / price) // 100) * 100
+            if cash < alloc * 0.8:
+                return {"success": False, "msg": "Két tiền mặt không đủ số dư"}
+
+            shares = int((alloc / price) // 100) * 100
             if shares <= 0:
                 shares = 100
             
@@ -341,21 +350,25 @@ class PortfolioLedger:
                 total_cost = shares * price
 
             if shares <= 0:
-                return False
+                return {"success": False, "msg": "Không đủ tiền mua lô 100 CP"}
 
             self.data["cash_vault"] -= total_cost
 
             found = False
             for h in self.data.get("holdings", []):
                 if h["ticker"] == ticker:
-                    old_cost = h["shares"] * h["avg_price"]
-                    new_shares = h["shares"] + shares
-                    h["avg_price"] = (old_cost + total_cost) / new_shares
+                    prev_shares = h["shares"]
+                    prev_cost = prev_shares * h["avg_price"]
+                    new_shares = prev_shares + shares
+                    new_avg = (prev_cost + total_cost) / new_shares
                     h["shares"] = new_shares
+                    h["avg_price"] = round(new_avg, 0)
                     h["current_price"] = price
+                    h["tranches_filled"] = tranche_step
+                    h["notes"] = f"Tranche {tranche_step}/3 ({int(sum(tranche_ratios[i] for i in range(1, tranche_step+1))*100)}% vị thế) - {reason}"
                     found = True
                     break
-            
+
             if not found:
                 self.data["holdings"].append({
                     "ticker": ticker,
@@ -436,26 +449,27 @@ def run_market_scan(force_notify=False):
         curr_holding = next((h for h in summary["holdings"] if h["ticker"] == ticker), None)
         curr_weight = (curr_holding["market_value"] / summary["total_nav"] * 100.0) if curr_holding else 0.0
 
-        if curr_weight < 15.0 and summary["cash_vault"] >= 50000000.0:
-            alloc = min(summary["cash_vault"] * 0.20, 80000000.0)
+        if curr_weight < 15.0 and summary["cash_vault"] >= 30000000.0:
+            target_alloc = min(summary["cash_vault"] * 0.20, 80000000.0)
             if cat == "CIGAR_BUTT":
-                reason = f"Săn Mẩu Xì Gà Siêu Rẻ (P/B {opp['pb']}x ≤ 0.70x, Chiết khấu so với NCAV)"
-                tag_title = "🚬 [CIGAR BUTT - LAST SMOKE] PHÁT HIỆN CỔ PHIẾU ĐỊNH GIÁ SIÊU RẺ"
+                reason = f"Nấc 1: Săn Mẩu Xì Gà Siêu Rẻ (P/B {opp['pb']}x ≤ 0.70x, Chiết khấu so với NCAV)"
+                tag_title = "🚬 [CIGAR BUTT - LAST SMOKE] KÍCH HOẠT TRANCHE 1 (THĂM DÒ 35%)"
             else:
-                reason = f"Đạt Biên an toàn 20% (Giá {opp['price']:,.0f} đ ≤ Mục tiêu {opp['discount_price']:,.0f} đ, ROE {opp['roe']}%)"
-                tag_title = "🏰 [QUALITY MOAT - BLUECHIP] ĐẠT BIÊN AN TOÀN MOAT 20%"
+                reason = f"Nấc 1: Đạt Biên an toàn 20% (Giá {opp['price']:,.0f} đ ≤ Mục tiêu {opp['discount_price']:,.0f} đ, ROE {opp['roe']}%)"
+                tag_title = "🏰 [QUALITY MOAT - BLUECHIP] KÍCH HOẠT TRANCHE 1 (THĂM DÒ 35%)"
 
-            success = LEDGER.execute_sniper_buy(ticker, opp["price"], reason, alloc)
+            res = LEDGER.execute_staged_buy(ticker, opp["price"], tranche_step=1, reason=reason, total_target_alloc=target_alloc)
             
-            if success:
+            if res.get("success"):
                 msg = (
                     f"{tag_title}\n\n"
                     f"🏢 *Cổ phiếu:* `{ticker}` - {opp['name']}\n"
                     f"💵 *Thị giá mua:* `{opp['price']:,.0f} VNĐ`\n"
+                    f"📦 *Khối lượng giải ngân:* `{res['shares']:,} CP` (`{res['cost']:,.0f} VNĐ` - 35% Vị thế)\n"
                     f"💎 *Định giá Mục tiêu:* `{opp['fair_value']:,.0f} VNĐ`\n"
-                    f"🎯 *Vùng Chiết khấu:* `{opp['discount_price']:,.0f} VNĐ`\n"
+                    f"🎯 *Vùng Chiết khấu MoS:* `{opp['discount_price']:,.0f} VNĐ`\n"
                     f"📊 *Chỉ số:* P/B `{opp['pb']}x` | P/E `{opp['pe']}` | ROE `{opp['roe']}%`\n\n"
-                    f"🏦 *Nguồn vốn:* Rút từ *Két tiền mặt 5%/năm* để giải ngân\n"
+                    f"🏦 *Quản trị vốn:* 65% Vốn còn lại tiếp tục nằm trong *Két tiền mặt 5%/năm* để ăn lãi và rình Nấc 2 (Secondary Test cạn Vol)!\n"
                     f"💡 *Luận điểm:* {reason}\n"
                     f"⏰ *Thời gian:* {get_vn_time_str()}"
                 )
