@@ -30,7 +30,7 @@ def get_vn_time():
 def get_vn_time_str(fmt="%H:%M:%S %d/%m/%Y"):
     return get_vn_time().strftime(fmt)
 
-# Cấu hình Môi trường & Credentials cho 2 Bot Telegram Cổ Phiếu Riêng Biệt
+# Cấu hình Môi trường & Credentials cho 3 Bot Telegram Cổ Phiếu Riêng Biệt
 # 1. BOT WARREN BUFFETT VALUE / MOAT (@Warrenbvaluebot)
 VALUE_TELEGRAM_BOT_TOKEN = os.getenv("VALUE_TELEGRAM_BOT_TOKEN", os.getenv("VN_STOCK_TELEGRAM_BOT_TOKEN", "8786802235:AAEGZ03axxEsPuY4_hcIVp-3HVmtVhp0RVw")).strip()
 VALUE_TELEGRAM_CHAT_ID = os.getenv("VALUE_TELEGRAM_CHAT_ID", os.getenv("VN_STOCK_TELEGRAM_CHAT_ID", "7189062506")).strip()
@@ -38,6 +38,10 @@ VALUE_TELEGRAM_CHAT_ID = os.getenv("VALUE_TELEGRAM_CHAT_ID", os.getenv("VN_STOCK
 # 2. BOT CIGAR BUTT / LAST SMOKE (@Lastsmokewbbot)
 CIGAR_TELEGRAM_BOT_TOKEN = os.getenv("CIGAR_TELEGRAM_BOT_TOKEN", "8897938954:AAHg5IcxV_L-C0jHm82TWnue2zrlW47qdqk").strip()
 CIGAR_TELEGRAM_CHAT_ID = os.getenv("CIGAR_TELEGRAM_CHAT_ID", "7189062506").strip()
+
+# 3. BOT QUANTAMENTAL 3-TRANCHE SNIPER (@Vipvltradebot - Xịn nhất trái đất)
+QUANT_TELEGRAM_BOT_TOKEN = os.getenv("QUANT_TELEGRAM_BOT_TOKEN", "8976230480:AAEsltaLwK8KNNNEOdyphZA5QxNHLzKB98I").strip()
+QUANT_TELEGRAM_CHAT_ID = os.getenv("QUANT_TELEGRAM_CHAT_ID", "7189062506").strip()
 
 INITIAL_CAPITAL = float(os.getenv("INITIAL_CAPITAL", "1000000000.0"))  # 1 Tỷ VNĐ Vốn ban đầu
 VAULT_ANNUAL_RATE = float(os.getenv("VAULT_ANNUAL_RATE", "0.05"))     # 5.0% Lãi suất Két tiền mặt/năm
@@ -181,10 +185,15 @@ def send_telegram_cigar(message: str) -> bool:
     """Gửi tin nhắn riêng về Bot @Lastsmokewbbot (Cigar Butt)"""
     return _send_raw_telegram(CIGAR_TELEGRAM_BOT_TOKEN, CIGAR_TELEGRAM_CHAT_ID, message)
 
+def send_telegram_quant(message: str) -> bool:
+    """Gửi tin nhắn riêng về Bot @Vipvltradebot (Quantamental 3-Tranche Sniper)"""
+    return _send_raw_telegram(QUANT_TELEGRAM_BOT_TOKEN, QUANT_TELEGRAM_CHAT_ID, message)
+
 def send_telegram(message: str) -> bool:
-    """Mặc định gửi cho cả 2 nếu là thông báo chung"""
+    """Mặc định gửi cho tất cả các bot nếu là thông báo chung"""
     send_telegram_value(message)
     send_telegram_cigar(message)
+    send_telegram_quant(message)
     return True
 
 # =============================================================================
@@ -477,6 +486,9 @@ def run_market_scan(force_notify=False):
                     send_telegram_cigar(msg)
                 else:
                     send_telegram_value(msg)
+                
+                # Luôn gửi về Bot 4 Quantamental Sniper
+                send_telegram_quant(msg)
 
     if force_notify:
         send_daily_summary_telegram()
@@ -486,14 +498,16 @@ def send_daily_summary_telegram():
     
     holdings_text = ""
     if len(summary["holdings"]) == 0:
-        holdings_text = "• _Đang giữ 100% Tiền mặt trong Két 5% (Sẵn sàng giải ngân)_\n"
+        holdings_text = "• _Đang giữ 100% Tiền mặt trong Két 5% (Sẵn sàng giải ngân Nấc 1)_\n"
     else:
         for h in summary["holdings"]:
             pnl_emoji = "🟢" if h["pnl"] >= 0 else "🔴"
+            tranche_info = h.get("notes", "Nấc 1/3")
             holdings_text += (
                 f"• `{h['ticker']:4}` | {h['shares']:>5,d} CP | "
-                f"Vốn: `{h['avg_price']:>6,.0f}` | Giá TT: `{h['current_price']:>6,.0f}` | "
+                f"Giá vốn: `{h['avg_price']:>6,.0f}` | TT: `{h['current_price']:>6,.0f}` | "
                 f"PnL: {pnl_emoji} `{h['pnl_pct']:>+5.1f}%`\n"
+                f"  ↳ _{tranche_info}_\n"
             )
 
     moat_text = ""
@@ -506,7 +520,7 @@ def send_daily_summary_telegram():
 
     pnl_sign = "+" if summary["total_profit"] >= 0 else ""
     
-    # 1. BẢN TIN RIÊNG CHO BOT WARREN BUFFETT VALUE (@Warrenbvaluebot)
+    # 1. BẢN TIN CHO BOT WARREN BUFFETT VALUE (@Warrenbvaluebot)
     msg_value = (
         f"🏰 *[WARREN BUFFETT VALUE & MOAT TERMINAL]*\n"
         f"📅 *Thời gian:* {get_vn_time_str()}\n\n"
@@ -521,7 +535,7 @@ def send_daily_summary_telegram():
     )
     send_telegram_value(msg_value)
 
-    # 2. BẢN TIN RIÊNG CHO BOT LAST SMOKE CIGAR BUTT (@Lastsmokewbbot)
+    # 2. BẢN TIN CHO BOT LAST SMOKE CIGAR BUTT (@Lastsmokewbbot)
     msg_cigar = (
         f"🚬 *[LAST SMOKE - CIGAR BUTT NET-NET TERMINAL]*\n"
         f"📅 *Thời gian:* {get_vn_time_str()}\n\n"
@@ -535,6 +549,30 @@ def send_daily_summary_telegram():
         f"{cigar_text}"
     )
     send_telegram_cigar(msg_cigar)
+
+    # 3. BẢN TIN CHO BOT QUANTAMENTAL 3-TRANCHE SNIPER (@Vipvltradebot)
+    armed_moat = [w for w in GLOBAL_MOAT_DATA if "VÙNG MUA" in w["status"] or "CHỜ CHỈNH" in w["status"]][:3]
+    armed_cigar = [w for w in GLOBAL_CIGAR_DATA if "VÙNG MUA" in w["status"] or "THEO DÕI" in w["status"]][:3]
+    
+    armed_text = ""
+    for w in (armed_moat + armed_cigar):
+        armed_text += f"• `{w['ticker']:4}`: Thị giá `{w['price']:,.0f}` | Vùng Rình: `{w['discount_price']:,.0f}` | {w['status']}\n"
+    if not armed_text:
+        armed_text = "• _Hiện chưa có mã nào lọt vào Vùng Rình. 100% tiền tiếp tục ở Két 5% đẻ lãi._\n"
+
+    msg_quant = (
+        f"🎯 *[QUANTAMENTAL 3-TRANCHE SNIPER TERMINAL]*\n"
+        f"📅 *Thời gian:* {get_vn_time_str()}\n\n"
+        f"💰 *TỔNG TÀI SẢN (NAV):* `{summary['total_nav']:,.0f} VNĐ`\n"
+        f"📈 *Lợi nhuận ròng:* `{pnl_sign}{summary['total_profit']:,.0f} VNĐ` (`{pnl_sign}{summary['total_return_pct']}%`)\n"
+        f"🏦 *Két Tiền Mặt 5%/năm:* `{summary['cash_vault']:,.0f} VNĐ` (`{summary['cash_pct']}%` vốn chờ Nấc 2/3)\n"
+        f"✨ *Lãi Két 5% tích lũy:* `+{summary['vault_interest_earned']:,.0f} VNĐ`\n\n"
+        f"📋 *TIẾN ĐỘ GIẢI NGÂN CÁC VỊ THẾ (TRANCHES):*\n"
+        f"{holdings_text}\n"
+        f"🏹 *DANH SÁCH ĐANG RÌNH TÍN HIỆU KỸ THUẬT (ARMED LIST):*\n"
+        f"{armed_text}"
+    )
+    send_telegram_quant(msg_quant)
 
 def background_scheduler():
     time.sleep(2)

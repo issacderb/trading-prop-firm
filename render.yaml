@@ -1,5 +1,5 @@
 services:
-  # UNIFIED MASTER SERVICE: Chạy song song cả 3 Hệ thống (Crypto + Value Moat + Last Smoke) trên 1 Web Service duy nhất (Free 100%)
+  # UNIFIED MASTER SERVICE: Chạy song song cả 4 Hệ thống (Crypto + Value Moat + Last Smoke + Quantamental 3-Tranche) trên 1 Web Service duy nhất (Free 100%)
   - type: web
     name: trading-prop-firm
     env: python
@@ -29,6 +29,12 @@ services:
       - key: CIGAR_TELEGRAM_BOT_TOKEN
         value: "8897938954:AAHg5IcxV_L-C0jHm82TWnue2zrlW47qdqk"
       - key: CIGAR_TELEGRAM_CHAT_ID
+        value: "7189062506"
+
+      # 4. BOT QUANTAMENTAL 3-TRANCHE SNIPER (@Vipvltradebot)
+      - key: QUANT_TELEGRAM_BOT_TOKEN
+        value: "8976230480:AAEsltaLwK8KNNNEOdyphZA5QxNHLzKB98I"
+      - key: QUANT_TELEGRAM_CHAT_ID
         value: "7189062506"
 
       # Cấu hình Vốn & Két tiền mặt 5%
