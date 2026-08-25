@@ -21,9 +21,9 @@ services:
 
       # Cấu hình Telegram riêng cho Bot Cổ Phiếu Việt Nam (Bot 2)
       - key: VN_STOCK_TELEGRAM_BOT_TOKEN
-        sync: false
+        value: "8897938954:AAHg5IcxV_L-C0jHm82TWnue2zrlW47qdqk"
       - key: VN_STOCK_TELEGRAM_CHAT_ID
-        sync: false
+        value: "7189062506"
       - key: INITIAL_CAPITAL
         value: "1000000000"
       - key: VAULT_ANNUAL_RATE

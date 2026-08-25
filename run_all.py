@@ -19,7 +19,7 @@ if hasattr(sys.stdout, 'reconfigure'):
         pass
 
 # Import 2 Engine độc lập
-import main as crypto_engine
+import crypto_engine
 import vn_stock_sniper as stock_engine
 
 PORT = int(os.getenv("PORT", "10000"))
@@ -202,9 +202,9 @@ class UnifiedDashboardHandler(BaseHTTPRequestHandler):
 
                 <!-- TAB SWITCHER -->
                 <div class="tab-nav">
-                    <button class="tab-btn active" onclick="switchTab('tab-stock')">🇻🇳 CHỨNG KHOÁN VIỆT NAM (BUFFETT & KÉT 5%)</button>
-                    <button class="tab-btn" onclick="switchTab('tab-crypto')">🤖 CRYPTO PROP FIRM (BINANCE M5)</button>
-                    <button class="tab-btn" onclick="switchTab('tab-split')">📊 XEM SONG SONG CẢ HAI</button>
+                    <button id="btn-tab-stock" class="tab-btn active" onclick="switchTab('tab-stock', this)">🇻🇳 CHỨNG KHOÁN VIỆT NAM (BUFFETT & KÉT 5%)</button>
+                    <button id="btn-tab-crypto" class="tab-btn" onclick="switchTab('tab-crypto', this)">🤖 CRYPTO PROP FIRM (BINANCE M5)</button>
+                    <button id="btn-tab-split" class="tab-btn" onclick="switchTab('tab-split', this)">📊 XEM SONG SONG CẢ HAI</button>
                 </div>
 
                 <!-- TAB 1: CHỨNG KHOÁN VIỆT NAM -->
@@ -358,22 +358,37 @@ class UnifiedDashboardHandler(BaseHTTPRequestHandler):
             </div>
 
             <script>
-                function switchTab(tabId) {{
+                function switchTab(tabId, el) {
                     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
                     document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
                     
-                    document.getElementById(tabId).classList.add('active');
-                    event.currentTarget.classList.add('active');
-                }}
+                    var target = document.getElementById(tabId);
+                    if (target) target.classList.add('active');
+                    if (el) {
+                        el.classList.add('active');
+                    } else {
+                        var b = document.getElementById('btn-' + tabId);
+                        if (b) b.classList.add('active');
+                    }
+                }
 
-                function triggerStockScan() {{
+                // Check URL params on load
+                window.addEventListener('DOMContentLoaded', () => {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const tab = urlParams.get('tab');
+                    if (tab === 'crypto') switchTab('tab-crypto');
+                    else if (tab === 'split') switchTab('tab-split');
+                    else if (tab === 'stock') switchTab('tab-stock');
+                });
+
+                function triggerStockScan() {
                     fetch('/api/stock/scan')
                         .then(r => r.json())
-                        .then(d => {{
+                        .then(d => {
                             alert('Đã kích hoạt quét thị trường Cổ Phiếu VN và gửi bản tin về Telegram @Warrenbvaluebot!');
                             setTimeout(() => location.reload(), 2000);
-                        }});
-                }}
+                        });
+                }
 
                 // Tự động làm mới trang mỗi 30 giây
                 setInterval(() => location.reload(), 30000);

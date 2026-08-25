@@ -31,7 +31,7 @@ def get_vn_time_str(fmt="%H:%M:%S %d/%m/%Y"):
     return get_vn_time().strftime(fmt)
 
 # Cấu hình Môi trường & Credentials (Bot Telegram riêng biệt cho Cổ Phiếu VN)
-VN_TELEGRAM_BOT_TOKEN = os.getenv("VN_STOCK_TELEGRAM_BOT_TOKEN", "8786802235:AAEGZ03axxEsPuY4_hcIVp-3HVmtVhp0RVw").strip()
+VN_TELEGRAM_BOT_TOKEN = os.getenv("VN_STOCK_TELEGRAM_BOT_TOKEN", "8897938954:AAHg5IcxV_L-C0jHm82TWnue2zrlW47qdqk").strip()
 VN_TELEGRAM_CHAT_ID = os.getenv("VN_STOCK_TELEGRAM_CHAT_ID", "7189062506").strip()
 
 INITIAL_CAPITAL = float(os.getenv("INITIAL_CAPITAL", "1000000000.0"))  # 1 Tỷ VNĐ Vốn ban đầu
