@@ -30,9 +30,14 @@ def get_vn_time():
 def get_vn_time_str(fmt="%H:%M:%S %d/%m/%Y"):
     return get_vn_time().strftime(fmt)
 
-# Cấu hình Môi trường & Credentials (Bot Telegram riêng biệt cho Cổ Phiếu VN)
-VN_TELEGRAM_BOT_TOKEN = os.getenv("VN_STOCK_TELEGRAM_BOT_TOKEN", "8897938954:AAHg5IcxV_L-C0jHm82TWnue2zrlW47qdqk").strip()
-VN_TELEGRAM_CHAT_ID = os.getenv("VN_STOCK_TELEGRAM_CHAT_ID", "7189062506").strip()
+# Cấu hình Môi trường & Credentials cho 2 Bot Telegram Cổ Phiếu Riêng Biệt
+# 1. BOT WARREN BUFFETT VALUE / MOAT (@Warrenbvaluebot)
+VALUE_TELEGRAM_BOT_TOKEN = os.getenv("VALUE_TELEGRAM_BOT_TOKEN", os.getenv("VN_STOCK_TELEGRAM_BOT_TOKEN", "8786802235:AAEGZ03axxEsPuY4_hcIVp-3HVmtVhp0RVw")).strip()
+VALUE_TELEGRAM_CHAT_ID = os.getenv("VALUE_TELEGRAM_CHAT_ID", os.getenv("VN_STOCK_TELEGRAM_CHAT_ID", "7189062506")).strip()
+
+# 2. BOT CIGAR BUTT / LAST SMOKE (@Lastsmokewbbot)
+CIGAR_TELEGRAM_BOT_TOKEN = os.getenv("CIGAR_TELEGRAM_BOT_TOKEN", "8897938954:AAHg5IcxV_L-C0jHm82TWnue2zrlW47qdqk").strip()
+CIGAR_TELEGRAM_CHAT_ID = os.getenv("CIGAR_TELEGRAM_CHAT_ID", "7189062506").strip()
 
 INITIAL_CAPITAL = float(os.getenv("INITIAL_CAPITAL", "1000000000.0"))  # 1 Tỷ VNĐ Vốn ban đầu
 VAULT_ANNUAL_RATE = float(os.getenv("VAULT_ANNUAL_RATE", "0.05"))     # 5.0% Lãi suất Két tiền mặt/năm
@@ -89,7 +94,6 @@ def fetch_stock_data(ticker: str, category: str = "MOAT") -> dict:
 
                 if category == "CIGAR_BUTT":
                     # ĐỊNH GIÁ MẨU TÀN XÌ GÀ (CIGAR BUTT / NET-NET)
-                    # Mục tiêu: P/B <= 0.70x (Chiết khấu 30% so với giá trị sổ sách)
                     book_value = (price / pb) if (pb > 0 and price > 0) else price
                     discount_price = book_value * 0.70  # Vùng mua chiết khấu 30%
                     fair_value = book_value * 1.0       # Giá trị thanh lý 100% NCAV
@@ -147,18 +151,15 @@ def fetch_stock_data(ticker: str, category: str = "MOAT") -> dict:
     }
 
 # =============================================================================
-# 2. TELEGRAM DISPATCHER
+# 2. TELEGRAM DISPATCHERS CHO 2 BOT RIÊNG BIỆT
 # =============================================================================
 
-def send_telegram(message: str) -> bool:
-    """Gửi tin nhắn định dạng Markdown về Telegram riêng cho Chứng khoán VN"""
-    if not VN_TELEGRAM_BOT_TOKEN or not VN_TELEGRAM_CHAT_ID:
-        print("[VN STOCK TELEGRAM] Token hoặc Chat ID chưa được thiết lập.")
+def _send_raw_telegram(token: str, chat_id: str, message: str) -> bool:
+    if not token or not chat_id:
         return False
-
-    url = f"https://api.telegram.org/bot{VN_TELEGRAM_BOT_TOKEN}/sendMessage"
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {
-        "chat_id": VN_TELEGRAM_CHAT_ID,
+        "chat_id": chat_id,
         "text": message,
         "parse_mode": "Markdown",
         "disable_web_page_preview": True
@@ -169,8 +170,22 @@ def send_telegram(message: str) -> bool:
         with urllib.request.urlopen(req, timeout=10) as resp:
             return resp.status == 200
     except Exception as e:
-        print(f"[VN STOCK TELEGRAM ERROR] {e}")
+        print(f"[TELEGRAM ERROR] {e}")
         return False
+
+def send_telegram_value(message: str) -> bool:
+    """Gửi tin nhắn riêng về Bot @Warrenbvaluebot (Quality Moat)"""
+    return _send_raw_telegram(VALUE_TELEGRAM_BOT_TOKEN, VALUE_TELEGRAM_CHAT_ID, message)
+
+def send_telegram_cigar(message: str) -> bool:
+    """Gửi tin nhắn riêng về Bot @Lastsmokewbbot (Cigar Butt)"""
+    return _send_raw_telegram(CIGAR_TELEGRAM_BOT_TOKEN, CIGAR_TELEGRAM_CHAT_ID, message)
+
+def send_telegram(message: str) -> bool:
+    """Mặc định gửi cho cả 2 nếu là thông báo chung"""
+    send_telegram_value(message)
+    send_telegram_cigar(message)
+    return True
 
 # =============================================================================
 # 3. PORTFOLIO & CASH VAULT LEDGER (SỔ CÁI QUẢN LÝ VỐN)
@@ -444,7 +459,10 @@ def run_market_scan(force_notify=False):
                     f"💡 *Luận điểm:* {reason}\n"
                     f"⏰ *Thời gian:* {get_vn_time_str()}"
                 )
-                send_telegram(msg)
+                if cat == "CIGAR_BUTT":
+                    send_telegram_cigar(msg)
+                else:
+                    send_telegram_value(msg)
 
     if force_notify:
         send_daily_summary_telegram()
@@ -454,7 +472,7 @@ def send_daily_summary_telegram():
     
     holdings_text = ""
     if len(summary["holdings"]) == 0:
-        holdings_text = "• _Đang giữ 100% Tiền mặt trong Két 5% (Chưa giải ngân mã nào)_\n"
+        holdings_text = "• _Đang giữ 100% Tiền mặt trong Két 5% (Sẵn sàng giải ngân)_\n"
     else:
         for h in summary["holdings"]:
             pnl_emoji = "🟢" if h["pnl"] >= 0 else "🔴"
@@ -465,29 +483,44 @@ def send_daily_summary_telegram():
             )
 
     moat_text = ""
-    for w in GLOBAL_MOAT_DATA[:4]:
+    for w in GLOBAL_MOAT_DATA[:6]:
         moat_text += f"• `{w['ticker']:4}`: Giá `{w['price']:,.0f}` | MoS: `{w['discount_price']:,.0f}` | ROE: `{w['roe']}%` | {w['status']}\n"
 
     cigar_text = ""
-    for w in GLOBAL_CIGAR_DATA[:4]:
+    for w in GLOBAL_CIGAR_DATA[:6]:
         cigar_text += f"• `{w['ticker']:4}`: Giá `{w['price']:,.0f}` | P/B: `{w['pb']}x` | Mục tiêu: `{w['fair_value']:,.0f}` | {w['status']}\n"
 
     pnl_sign = "+" if summary["total_profit"] >= 0 else ""
-    msg = (
-        f"📊 *BẢN TIN QUAN SÁT THỊ TRƯỜNG CHỨNG KHOÁN VIỆT NAM*\n"
+    
+    # 1. BẢN TIN RIÊNG CHO BOT WARREN BUFFETT VALUE (@Warrenbvaluebot)
+    msg_value = (
+        f"🏰 *[WARREN BUFFETT VALUE & MOAT TERMINAL]*\n"
         f"📅 *Thời gian:* {get_vn_time_str()}\n\n"
         f"💰 *TỔNG TÀI SẢN (NAV):* `{summary['total_nav']:,.0f} VNĐ`\n"
-        f"📈 *Lợi nhuận:* `{pnl_sign}{summary['total_profit']:,.0f} VNĐ` (`{pnl_sign}{summary['total_return_pct']}%`)\n"
+        f"📈 *Lợi nhuận ròng:* `{pnl_sign}{summary['total_profit']:,.0f} VNĐ` (`{pnl_sign}{summary['total_return_pct']}%`)\n"
         f"🏦 *Két Tiền Mặt 5%/năm:* `{summary['cash_vault']:,.0f} VNĐ` (`{summary['cash_pct']}%`)\n"
         f"✨ *Lãi Két 5% tích lũy:* `+{summary['vault_interest_earned']:,.0f} VNĐ`\n\n"
         f"📋 *DANH MỤC CỔ PHIẾU NẮM GIỮ:*\n"
         f"{holdings_text}\n"
-        f"🏰 *TOP DOANH NGHIỆP VĨ ĐẠI (QUALITY MOAT - HOSE):*\n"
-        f"{moat_text}\n"
-        f"🚬 *TOP MẨU TÀN XÌ GÀ (CIGAR BUTT NET-NET - UPCoM/HNX):*\n"
+        f"🎯 *TOP DOANH NGHIỆP VĨ ĐẠI (QUALITY MOAT - HOSE):*\n"
+        f"{moat_text}"
+    )
+    send_telegram_value(msg_value)
+
+    # 2. BẢN TIN RIÊNG CHO BOT LAST SMOKE CIGAR BUTT (@Lastsmokewbbot)
+    msg_cigar = (
+        f"🚬 *[LAST SMOKE - CIGAR BUTT NET-NET TERMINAL]*\n"
+        f"📅 *Thời gian:* {get_vn_time_str()}\n\n"
+        f"💰 *TỔNG TÀI SẢN (NAV):* `{summary['total_nav']:,.0f} VNĐ`\n"
+        f"📈 *Lợi nhuận ròng:* `{pnl_sign}{summary['total_profit']:,.0f} VNĐ` (`{pnl_sign}{summary['total_return_pct']}%`)\n"
+        f"🏦 *Két Tiền Mặt 5%/năm:* `{summary['cash_vault']:,.0f} VNĐ` (`{summary['cash_pct']}%`)\n"
+        f"✨ *Lãi Két 5% tích lũy:* `+{summary['vault_interest_earned']:,.0f} VNĐ`\n\n"
+        f"📋 *DANH MỤC CỔ PHIẾU NẮM GIỮ:*\n"
+        f"{holdings_text}\n"
+        f"🎯 *TOP MẨU TÀN XÌ GÀ SIÊU RẺ & CỔ TỨC (UPCoM/HNX):*\n"
         f"{cigar_text}"
     )
-    send_telegram(msg)
+    send_telegram_cigar(msg_cigar)
 
 def background_scheduler():
     time.sleep(2)
