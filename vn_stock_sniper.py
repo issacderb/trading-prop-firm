@@ -102,7 +102,7 @@ def fetch_stock_data(ticker: str, category: str = "MOAT") -> dict:
                     discount_price = book_value * 0.70  # Vùng mua chiết khấu 30%
                     fair_value = book_value * 1.0       # Giá trị thanh lý 100% NCAV
                     
-                    status = "🟢 VÙNG MUA XÌ GÀ" if (price <= discount_price or (pb > 0 and pb <= 0.75)) else ("🟡 THEO DÕI XÌ GÀ" if (pb <= 1.1) else "🔴 HẾT HƠI KHÓI")
+                    status = "🎯 VÙNG RÌNH (ARMED)" if (price <= discount_price or (pb > 0 and pb <= 0.75)) else ("🟡 THEO DÕI XÌ GÀ" if (pb <= 1.1) else "🔴 HẾT HƠI KHÓI")
                     distance_pct = ((price - discount_price) / discount_price * 100.0) if discount_price > 0 else 0.0
                 else:
                     # ĐỊNH GIÁ DOANH NGHIỆP VĨ ĐẠI (QUALITY MOAT)
@@ -114,7 +114,7 @@ def fetch_stock_data(ticker: str, category: str = "MOAT") -> dict:
 
                     discount_price = fair_value * 0.80  # Mua chiết khấu 20% (Margin of Safety)
                     distance_pct = ((price - discount_price) / discount_price * 100.0) if discount_price > 0 else 0.0
-                    status = "🟢 VÙNG MUA MOAT" if price <= discount_price else ("🟡 CHỜ CHỈNH" if price <= fair_value else "🔴 ĐẮT")
+                    status = "🎯 VÙNG RÌNH (ARMED)" if price <= discount_price else ("🟡 CHỜ CHỈNH" if price <= fair_value else "🔴 ĐẮT")
 
                 return {
                     "ticker": ticker.upper(),
@@ -426,7 +426,7 @@ def run_market_scan(force_notify=False):
         moat_results.append(d)
         if d["price"] > 0:
             price_map[ticker] = d["price"]
-        if "VÙNG MUA" in d["status"] and d["price"] > 0:
+        if "VÙNG RÌNH" in d["status"] and d["price"] > 0:
             sniper_opportunities.append(d)
         time.sleep(0.12)
 
@@ -436,12 +436,12 @@ def run_market_scan(force_notify=False):
         cigar_results.append(d)
         if d["price"] > 0:
             price_map[ticker] = d["price"]
-        if "VÙNG MUA" in d["status"] and d["price"] > 0:
+        if "VÙNG RÌNH" in d["status"] and d["price"] > 0:
             sniper_opportunities.append(d)
         time.sleep(0.12)
 
-    moat_results.sort(key=lambda x: (0 if "VÙNG MUA" in x["status"] else (1 if "CHỜ CHỈNH" in x["status"] else 2), -x["roe"]))
-    cigar_results.sort(key=lambda x: (0 if "VÙNG MUA" in x["status"] else (1 if "THEO DÕI" in x["status"] else 2), x["pb"] if x["pb"]>0 else 99))
+    moat_results.sort(key=lambda x: (0 if "VÙNG RÌNH" in x["status"] else (1 if "CHỜ CHỈNH" in x["status"] else 2), -x["roe"]))
+    cigar_results.sort(key=lambda x: (0 if "VÙNG RÌNH" in x["status"] else (1 if "THEO DÕI" in x["status"] else 2), x["pb"] if x["pb"]>0 else 99))
 
     GLOBAL_MOAT_DATA = moat_results
     GLOBAL_CIGAR_DATA = cigar_results
@@ -452,43 +452,38 @@ def run_market_scan(force_notify=False):
     LEDGER.accrue_daily_vault_interest()
     summary = LEDGER.get_portfolio_summary()
 
+    # KHI PHÁT HIỆN CỔ PHIẾU VÀO VÙNG RÌNH (ARMED):
+    # Hệ thống KHÔNG TỰ ĐỘNG MUA MÙ QUÁNG mà gửi thông báo Vùng Rình.
+    # 100% Tiền vẫn nằm trong Két 5% đẻ lãi cho đến khi có xác nhận nến Stopping Vol / CHoCH!
     for opp in sniper_opportunities:
         ticker = opp["ticker"]
         cat = opp.get("category", "MOAT")
         curr_holding = next((h for h in summary["holdings"] if h["ticker"] == ticker), None)
-        curr_weight = (curr_holding["market_value"] / summary["total_nav"] * 100.0) if curr_holding else 0.0
-
-        if curr_weight < 15.0 and summary["cash_vault"] >= 30000000.0:
-            target_alloc = min(summary["cash_vault"] * 0.20, 80000000.0)
+        
+        if not curr_holding:
             if cat == "CIGAR_BUTT":
-                reason = f"Nấc 1: Săn Mẩu Xì Gà Siêu Rẻ (P/B {opp['pb']}x ≤ 0.70x, Chiết khấu so với NCAV)"
-                tag_title = "🚬 [CIGAR BUTT - LAST SMOKE] KÍCH HOẠT TRANCHE 1 (THĂM DÒ 35%)"
+                tag_title = "🚬 [CIGAR BUTT - LAST SMOKE] 🎯 ĐÃ LỌT VÀO VÙNG RÌNH (ARMED)"
+                reason = f"Định giá siêu rẻ P/B {opp['pb']}x ≤ 0.70x (Chiết khấu so với NCAV)"
             else:
-                reason = f"Nấc 1: Đạt Biên an toàn 20% (Giá {opp['price']:,.0f} đ ≤ Mục tiêu {opp['discount_price']:,.0f} đ, ROE {opp['roe']}%)"
-                tag_title = "🏰 [QUALITY MOAT - BLUECHIP] KÍCH HOẠT TRANCHE 1 (THĂM DÒ 35%)"
+                tag_title = "🏰 [QUALITY MOAT - BLUECHIP] 🎯 ĐÃ LỌT VÀO VÙNG RÌNH (ARMED)"
+                reason = f"Đạt Biên an toàn MoS 20% (Giá {opp['price']:,.0f} đ ≤ Mục tiêu {opp['discount_price']:,.0f} đ)"
 
-            res = LEDGER.execute_staged_buy(ticker, opp["price"], tranche_step=1, reason=reason, total_target_alloc=target_alloc)
-            
-            if res.get("success"):
-                msg = (
-                    f"{tag_title}\n\n"
-                    f"🏢 *Cổ phiếu:* `{ticker}` - {opp['name']}\n"
-                    f"💵 *Thị giá mua:* `{opp['price']:,.0f} VNĐ`\n"
-                    f"📦 *Khối lượng giải ngân:* `{res['shares']:,} CP` (`{res['cost']:,.0f} VNĐ` - 35% Vị thế)\n"
-                    f"💎 *Định giá Mục tiêu:* `{opp['fair_value']:,.0f} VNĐ`\n"
-                    f"🎯 *Vùng Chiết khấu MoS:* `{opp['discount_price']:,.0f} VNĐ`\n"
-                    f"📊 *Chỉ số:* P/B `{opp['pb']}x` | P/E `{opp['pe']}` | ROE `{opp['roe']}%`\n\n"
-                    f"🏦 *Quản trị vốn:* 65% Vốn còn lại tiếp tục nằm trong *Két tiền mặt 5%/năm* để ăn lãi và rình Nấc 2 (Secondary Test cạn Vol)!\n"
-                    f"💡 *Luận điểm:* {reason}\n"
-                    f"⏰ *Thời gian:* {get_vn_time_str()}"
-                )
-                if cat == "CIGAR_BUTT":
-                    send_telegram_cigar(msg)
-                else:
-                    send_telegram_value(msg)
-                
-                # Luôn gửi về Bot 4 Quantamental Sniper
-                send_telegram_quant(msg)
+            msg_armed = (
+                f"{tag_title}\n\n"
+                f"🏢 *Cổ phiếu:* `{ticker}` - {opp['name']}\n"
+                f"💵 *Thị giá hiện tại:* `{opp['price']:,.0f} VNĐ`\n"
+                f"🎯 *Vùng Chiết khấu MoS:* `{opp['discount_price']:,.0f} VNĐ`\n"
+                f"💎 *Định giá Hợp lý:* `{opp['fair_value']:,.0f} VNĐ`\n"
+                f"📊 *Chỉ số:* P/B `{opp['pb']}x` | P/E `{opp['pe']}` | ROE `{opp['roe']}%`\n\n"
+                f"🛡️ *Hành động:* *CHƯA GIẢI NGÂN NGAY!* Hệ thống đưa vào diện *ĐANG RÌNH (OBSERVE MODE)*.\n"
+                f"🏦 *Vốn:* 100% Tiền mặt *tiếp tục nằm trong Két 5%/năm* để ăn lãi hàng ngày và chờ nến *Stopping Volume / Sweep Quét Đáy* để kích hoạt Nấc 1!\n"
+                f"⏰ *Thời gian:* {get_vn_time_str()}"
+            )
+            if cat == "CIGAR_BUTT":
+                send_telegram_cigar(msg_armed)
+            else:
+                send_telegram_value(msg_armed)
+            send_telegram_quant(msg_armed)
 
     if force_notify:
         send_daily_summary_telegram()

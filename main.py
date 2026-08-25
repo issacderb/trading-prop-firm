@@ -91,8 +91,8 @@ class UnifiedDashboardHandler(BaseHTTPRequestHandler):
         # 1. Quality Moat Table
         moat_rows = ""
         for w in (stock_engine.GLOBAL_MOAT_DATA or stock_engine.GLOBAL_WATCHLIST_DATA[:15]):
-            badge_bg = "#065f46" if "VÙNG MUA" in w["status"] else ("#854d0e" if "CHỜ CHỈNH" in w["status"] else "#991b1b")
-            badge_color = "#6ee7b7" if "VÙNG MUA" in w["status"] else ("#fde047" if "CHỜ CHỈNH" in w["status"] else "#fca5a5")
+            badge_bg = "#0369a1" if "VÙNG RÌNH" in w["status"] else ("#854d0e" if "CHỜ CHỈNH" in w["status"] else "#991b1b")
+            badge_color = "#38bdf8" if "VÙNG RÌNH" in w["status"] else ("#fde047" if "CHỜ CHỈNH" in w["status"] else "#fca5a5")
             moat_rows += f"""
             <tr>
                 <td style="font-weight: bold; color: #38bdf8; font-size: 14px;">{w['ticker']}</td>
@@ -109,8 +109,8 @@ class UnifiedDashboardHandler(BaseHTTPRequestHandler):
         # 2. Cigar Butt Table (UPCoM / HNX Deep Value)
         cigar_rows = ""
         for w in (stock_engine.GLOBAL_CIGAR_DATA or stock_engine.GLOBAL_WATCHLIST_DATA[15:]):
-            badge_bg = "#065f46" if "VÙNG MUA" in w["status"] else ("#854d0e" if "THEO DÕI" in w["status"] else "#991b1b")
-            badge_color = "#6ee7b7" if "VÙNG MUA" in w["status"] else ("#fde047" if "THEO DÕI" in w["status"] else "#fca5a5")
+            badge_bg = "#0369a1" if "VÙNG RÌNH" in w["status"] else ("#854d0e" if "THEO DÕI" in w["status"] else "#991b1b")
+            badge_color = "#38bdf8" if "VÙNG RÌNH" in w["status"] else ("#fde047" if "THEO DÕI" in w["status"] else "#fca5a5")
             cigar_rows += f"""
             <tr>
                 <td style="font-weight: bold; color: #fbbf24; font-size: 14px;">{w['ticker']}</td>
