@@ -12,3 +12,11 @@ pnpm-lock.yaml
 yarn.lock
 __pycache__/
 *.pyc
+
+# Sổ cái forward test — dữ liệu runtime, KHÔNG commit
+# (bản cũ commit ledger chứa vị thế và cổ tức bịa vào repo)
+vn_portfolio_ledger.json
+forward_test_ledger.json
+*.json.tmp
+*.json.corrupt
+data/

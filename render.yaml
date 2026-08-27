@@ -1,32 +1,81 @@
 services:
-  # UNIFIED MASTER SERVICE: Chạy song song cả Bot Crypto & Bot Cổ Phiếu VN trên 1 Web Service duy nhất (Free 100%)
+  # Chạy song song Bot Crypto & Bot Cổ Phiếu VN trên 1 Web Service
   - type: web
     name: dual-quant-terminal
     env: python
     plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: python -u run_all.py
+    # ⚠️ Free tier KHÔNG có persistent disk -> sổ cái bị xoá mỗi lần restart,
+    # làm đường vốn hiển thị không phản ánh thực tế (mất chuỗi thua/thắng).
+    # Nâng lên plan có disk rồi bỏ comment khối dưới và set DATA_DIR=/var/data.
+    # disk:
+    #   name: ledger-data
+    #   mountPath: /var/data
+    #   sizeGB: 1
     envVars:
-      # Cấu hình Telegram cho Bot Crypto Prop Firm (Bot 1)
+      # --- Lưu trữ ---
+      - key: DATA_DIR
+        value: "."          # đổi thành /var/data khi đã gắn persistent disk
+
+      # --- Telegram Bot Crypto (sync:false = nhập thủ công, không lưu trong repo) ---
       - key: TELEGRAM_BOT_TOKEN
         sync: false
       - key: TELEGRAM_CHAT_ID
         sync: false
+
+      # --- Cấu hình engine Crypto ---
       - key: SYMBOL
         value: BTCUSDT
       - key: INTERVAL
         value: 5m
       - key: RISK_PER_TRADE_PCT
         value: "0.005"
+      - key: INITIAL_BALANCE
+        value: "100000"
+      # Chi phí thực tế Binance USDⓈ-M Futures
+      - key: TAKER_FEE_RATE
+        value: "0.0004"
+      - key: SLIPPAGE_RATE
+        value: "0.0001"
+      - key: STOP_SLIPPAGE_RATE
+        value: "0.0003"
+      # Luật prop firm
+      - key: DAILY_LOSS_LIMIT_PCT
+        value: "0.05"
+      - key: MAX_TOTAL_DD_PCT
+        value: "0.10"
 
-      # Cấu hình Telegram riêng cho Bot Cổ Phiếu Việt Nam (Bot 2)
+      # --- Telegram Bot Cổ Phiếu VN ---
       - key: VN_STOCK_TELEGRAM_BOT_TOKEN
         sync: false
       - key: VN_STOCK_TELEGRAM_CHAT_ID
         sync: false
+
+      # --- Cấu hình engine Cổ Phiếu VN ---
       - key: INITIAL_CAPITAL
         value: "1000000000"
       - key: VAULT_ANNUAL_RATE
         value: "0.05"
+      # Chi phí thực tế TTCK VN
+      - key: BROKER_FEE_RATE
+        value: "0.0015"
+      - key: SELL_TAX_RATE
+        value: "0.001"
+      - key: SETTLEMENT_DAYS
+        value: "3"
+      # Bộ lọc chất lượng
+      - key: MIN_ROE
+        value: "15"
+      - key: MOS_RATE
+        value: "0.20"
+      # Kỷ luật danh mục
+      - key: MIN_CASH_FLOOR_PCT
+        value: "0.20"
+      - key: MAX_POSITION_WEIGHT
+        value: "0.15"
+      - key: MAX_BUYS_PER_DAY
+        value: "1"
+
       - key: PORT
         value: "10000"

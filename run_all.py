@@ -64,7 +64,7 @@ class UnifiedDashboardHandler(BaseHTTPRequestHandler):
                 <td>{h['avg_price']:,.0f} đ</td>
                 <td><strong style="color: #f8fafc;">{h['current_price']:,.0f} đ</strong></td>
                 <td>{h['market_value']:,.0f} đ</td>
-                <td>{h['dividends']:,.0f} đ</td>
+                <td>{('🔒 T+' + str(h['sellable_in_days'])) if h['sellable_in_days'] > 0 else '✓'}</td>
                 <td style="font-weight: bold; color: {pnl_color};">{pnl_sign}{h['pnl_pct']}% ({pnl_sign}{h['pnl']:,.0f} đ)</td>
             </tr>
             """
@@ -72,17 +72,23 @@ class UnifiedDashboardHandler(BaseHTTPRequestHandler):
         # Stock Watchlist Table
         stock_wl_rows = ""
         for w in stock_engine.GLOBAL_WATCHLIST_DATA[:8]:
-            badge_bg = "#065f46" if "VÙNG MUA" in w["status"] else ("#854d0e" if "CHỜ CHỈNH" in w["status"] else "#991b1b")
-            badge_color = "#6ee7b7" if "VÙNG MUA" in w["status"] else ("#fde047" if "CHỜ CHỈNH" in w["status"] else "#fca5a5")
+            if "VÙNG MUA" in w["status"]:
+                badge_bg, badge_color = "#065f46", "#6ee7b7"
+            elif "CHỜ CHỈNH" in w["status"]:
+                badge_bg, badge_color = "#854d0e", "#fde047"
+            elif "ĐẮT" in w["status"]:
+                badge_bg, badge_color = "#991b1b", "#fca5a5"
+            else:
+                badge_bg, badge_color = "#334155", "#94a3b8"
             stock_wl_rows += f"""
             <tr>
                 <td style="font-weight: bold; color: #38bdf8;">{w['ticker']}</td>
                 <td>{w['name']}</td>
                 <td><strong>{w['price']:,.0f} đ</strong></td>
-                <td style="color: #fbbf24;">{w['fair_value']:,.0f} đ</td>
-                <td style="color: #34d399; font-weight: bold;">{w['discount_price']:,.0f} đ</td>
-                <td style="color: #a7f3d0;">{w['roe']}%</td>
-                <td>{w['pe']}</td>
+                <td style="color: #fbbf24;">{(f"{w['fair_value']:,.0f} đ") if w['fair_value'] > 0 else "—"}</td>
+                <td style="color: #34d399; font-weight: bold;">{(f"{w['discount_price']:,.0f} đ") if w['discount_price'] > 0 else "—"}</td>
+                <td style="color: #a7f3d0;">{w['roe']:.1f}%</td>
+                <td>{w['pe']:.1f}</td>
                 <td><span style="background: {badge_bg}; color: {badge_color}; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">{w['status']}</span></td>
             </tr>
             """
@@ -90,7 +96,7 @@ class UnifiedDashboardHandler(BaseHTTPRequestHandler):
         # Crypto History Table
         crypto_rows = ""
         for t in reversed(c_led.get("history", [])[-8:]):
-            res_color = "#10b981" if "WIN" in t["outcome"] else "#ef4444"
+            res_color = "#10b981" if t.get("dollar_pnl", 0) > 0 else "#ef4444"
             crypto_rows += f"""
             <tr>
                 <td>#{t['trade_id']}</td>
@@ -177,7 +183,7 @@ class UnifiedDashboardHandler(BaseHTTPRequestHandler):
                         <div style="font-size: 13px; font-weight: 600; color: #cbd5e1; margin-top: 14px;">📦 Cổ Phiếu Đang Giữ ({len(s_sum['holdings'])} mã)</div>
                         <div style="overflow-x: auto;">
                             <table>
-                                <thead><tr><th>Mã</th><th>SL</th><th>Giá vốn</th><th>Thị giá</th><th>Giá trị</th><th>Cổ tức</th><th>PnL</th></tr></thead>
+                                <thead><tr><th>Mã</th><th>SL</th><th>Giá vốn</th><th>Thị giá</th><th>Giá trị</th><th>Thanh toán</th><th>PnL</th></tr></thead>
                                 <tbody>{stock_rows}</tbody>
                             </table>
                         </div>
@@ -254,20 +260,25 @@ def start_master_web_server():
 
 if __name__ == "__main__":
     print("=================================================================")
-    print(" KHỞI ĐỘNG HỆ THỐNG KÉP: CRYPTO PROP FIRM & VN STOCK BUFFETT SNIPER")
+    print(" KHỞI ĐỘNG HỆ THỐNG KÉP: CRYPTO PROP FIRM & VN STOCK VALUE SNIPER")
     print("=================================================================")
 
-    # 1. Khởi chạy luồng Crypto Prop Firm Engine
-    crypto_engine.load_ledger()
-    crypto_engine.recalculate_metrics()
-    t_crypto = threading.Thread(target=crypto_engine.main_loop, daemon=True)
+    # 1. Crypto Prop Firm Engine
+    # LỖI CŨ: file này gọi crypto_engine.load_ledger() / recalculate_metrics() /
+    # main_loop() — cả 3 hàm KHÔNG TỒN TẠI ở module level trong main.py
+    # (load_ledger là method, 2 hàm kia chưa từng tồn tại). Vì run_all.py chính là
+    # startCommand trong render.yaml nên toàn bộ service crash ngay khi boot với
+    # AttributeError. Nay dùng đúng instance của LiveForwardTester.
+    crypto_bot = crypto_engine.LiveForwardTester()
+    crypto_bot.recompute_stats()
+    t_crypto = threading.Thread(target=crypto_bot.start_loop, daemon=True)
     t_crypto.start()
     print("[THREAD 1] Crypto Prop Firm Engine đã kích hoạt.")
 
-    # 2. Khởi chạy luồng Vietnam Stock Buffett Sniper Engine
+    # 2. Vietnam Stock Value Sniper Engine
     t_stock = threading.Thread(target=stock_engine.background_scheduler, daemon=True)
     t_stock.start()
-    print("[THREAD 2] Vietnam Stock Buffett Sniper Engine đã kích hoạt.")
+    print("[THREAD 2] Vietnam Stock Value Sniper Engine đã kích hoạt.")
 
-    # 3. Khởi chạy luồng Web Dashboard Master
+    # 3. Web Dashboard Master
     start_master_web_server()
